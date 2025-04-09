@@ -1,0 +1,12 @@
+[workspace]
+resolver = "2"
+members = [ "crates/limine", "crates/menuconfig","kernel"]
+default-members = ["kernel"]
+
+[workspace.package]
+version = "0.0.1"
+edition = "2024"
+
+[workspace.dependencies]
+menuconfig = { path = "crates/menuconfig", default-features = false }
+limine = { path = "crates/limine", default-features = false }

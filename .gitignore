@@ -1,2 +1,5 @@
 # Rust build files
 /target
+
+# Kernel config
+kernel_conf.json
