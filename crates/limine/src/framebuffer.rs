@@ -57,7 +57,7 @@ impl<'a> Framebuffer<'a> {
         unsafe { self.inner.r0.pitch }
     }
 
-    pub fn bpp(&self) -> u64 {
+    pub fn bpp(&self) -> u16 {
         unsafe { self.inner.r0.bpp }
     }
 }
@@ -89,7 +89,7 @@ pub(crate) struct FramebufferR0 {
     height: u64,
     pitch: u64,
     /// The number of bits per pixel.
-    bpp: u64,
+    bpp: u16,
     memory_model: u8,
     red_mask_size: u8,
     red_mask_shift: u8,

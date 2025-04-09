@@ -1,25 +1,46 @@
+use std::str::FromStr;
+
 use crossterm::event::{Event, KeyCode, KeyEvent};
 use ratatui::{prelude::*, widgets::*};
 
-use crate::config::Config;
+use crate::config::{BootProtocol, Config};
 
+#[derive(Debug, Clone)]
 enum ConfigValue {
     Bool(bool),
+    String(String),
+    List(Vec<ConfigValue>),
 }
 
 impl ConfigValue {
     fn as_bool(&self) -> bool {
         match self {
             ConfigValue::Bool(b) => *b,
+            _ => panic!("Not a bool"),
+        }
+    }
+
+    fn as_string(&self) -> String {
+        match self {
+            ConfigValue::String(s) => s.clone(),
+            _ => panic!("Not a string"),
+        }
+    }
+
+    fn as_list(&self) -> Vec<ConfigValue> {
+        match self {
+            ConfigValue::List(l) => l.clone(),
+            _ => panic!("Not a list"),
         }
     }
 }
 
 trait ConfigItem {
-    fn get_value(&self) -> String;
-    // TODO: Rename this to get_value, and use a render approach instead
-    fn get_value_type(&self) -> ConfigValue;
+    fn get_value(&self) -> ConfigValue;
+    fn get_height(&self) -> u16;
+    fn render(&self, f: &mut Frame, area: Rect, selected: bool);
     fn on_event(&mut self, event: KeyEvent) -> bool;
+    fn on_deselect(&mut self) {}
 }
 
 struct ConfigToggle {
@@ -28,17 +49,170 @@ struct ConfigToggle {
 }
 
 impl ConfigItem for ConfigToggle {
-    fn get_value(&self) -> String {
-        format!("{} {}", if self.value { "[x]" } else { "[ ]" }, self.name)
+    fn get_value(&self) -> ConfigValue {
+        ConfigValue::Bool(self.value)
     }
 
-    fn get_value_type(&self) -> ConfigValue {
-        ConfigValue::Bool(self.value)
+    fn get_height(&self) -> u16 {
+        2
+    }
+
+    fn render(&self, f: &mut Frame, area: Rect, selected: bool) {
+        let block = Block::default().borders(Borders::BOTTOM);
+        f.render_widget(&block, area);
+        let content = Paragraph::new(format!(
+            "{} {}",
+            if self.value { "[x]" } else { "[ ]" },
+            self.name.as_str()
+        ))
+        .style(if selected {
+            Style::default().fg(Color::Yellow)
+        } else {
+            Style::default()
+        });
+        f.render_widget(content, block.inner(area));
     }
 
     fn on_event(&mut self, event: KeyEvent) -> bool {
         if event.code == KeyCode::Enter {
             self.value = !self.value;
+            true
+        } else {
+            false
+        }
+    }
+}
+
+#[derive(Debug)]
+struct ConfigChoice<T: Clone + std::fmt::Display> {
+    name: String,
+    selected: usize,
+    choices: Vec<T>,
+}
+
+impl<T> ConfigChoice<T>
+where
+    T: Clone + std::fmt::Display,
+{
+    pub fn new(name: String, choices: Vec<T>, selected: usize) -> Self {
+        Self {
+            name,
+            selected,
+            choices,
+        }
+    }
+}
+
+impl<T> ConfigItem for ConfigChoice<T>
+where
+    T: Clone + std::fmt::Display,
+{
+    fn get_value(&self) -> ConfigValue {
+        ConfigValue::String(self.choices[self.selected].to_string())
+    }
+
+    fn get_height(&self) -> u16 {
+        2
+    }
+
+    fn render(&self, f: &mut Frame, area: Rect, selected: bool) {
+        let block = Block::default().borders(Borders::BOTTOM);
+        f.render_widget(&block, area);
+        let content = Paragraph::new(format!(
+            "[{}] {}",
+            self.choices[self.selected].to_string(),
+            self.name.as_str()
+        ))
+        .style(if selected {
+            Style::default().fg(Color::Yellow)
+        } else {
+            Style::default()
+        });
+        f.render_widget(content, block.inner(area));
+    }
+
+    fn on_event(&mut self, event: KeyEvent) -> bool {
+        if event.code == KeyCode::Right {
+            self.selected = (self.selected + 1) % self.choices.len();
+            true
+        } else if event.code == KeyCode::Left {
+            self.selected = (self.selected + self.choices.len() - 1) % self.choices.len();
+            true
+        } else {
+            false
+        }
+    }
+}
+
+struct ConfigSection {
+    name: String,
+    items: Vec<Box<dyn ConfigItem>>,
+    selected: Option<usize>,
+}
+
+impl ConfigSection {
+    fn add_item(&mut self, item: Box<dyn ConfigItem>) {
+        self.items.push(item);
+    }
+}
+
+impl ConfigItem for ConfigSection {
+    fn get_value(&self) -> ConfigValue {
+        ConfigValue::List(self.items.iter().map(|item| item.get_value()).collect())
+    }
+
+    fn get_height(&self) -> u16 {
+        if self.selected.is_some() { 0 } else { 3 }
+    }
+
+    fn render(&self, f: &mut Frame, area: Rect, selected: bool) {
+        let block = Block::default().borders(Borders::ALL);
+        f.render_widget(&block, area);
+        if let Some(selected) = self.selected {
+            let mut constraints = Vec::new();
+            for item in self.items.iter() {
+                let height = item.get_height();
+                if height == 0 {
+                    // This means that the item will instead take up the entire space
+                    item.render(f, area, true);
+                    return;
+                }
+                constraints.push(Constraint::Length(height));
+            }
+            let layout = Layout::default()
+                .direction(Direction::Vertical)
+                .constraints(constraints)
+                .split(block.inner(area));
+            for (i, item) in self.items.iter().enumerate() {
+                item.render(f, layout[i], selected == i);
+            }
+        } else {
+            let content = Paragraph::new(self.name.as_str()).style(if selected {
+                Style::default().fg(Color::Yellow)
+            } else {
+                Style::default()
+            });
+            f.render_widget(content, block.inner(area));
+        }
+    }
+
+    fn on_event(&mut self, event: KeyEvent) -> bool {
+        // Capture input if we are selected
+        if let Some(selected) = self.selected {
+            if self
+                .items
+                .get_mut(selected)
+                .is_some_and(|item| item.as_mut().on_event(event))
+            {
+                return true;
+            } else if event.code == KeyCode::Esc {
+                self.selected = None;
+                return true;
+            }
+        }
+
+        if event.code == KeyCode::Enter {
+            self.selected = Some(self.selected.unwrap_or(0));
             true
         } else {
             false
@@ -58,7 +232,16 @@ impl ConfigMenu {
     }
 
     fn on_event(&mut self, event: KeyEvent) -> bool {
+        if self
+            .items
+            .get_mut(self.selected)
+            .is_some_and(|item| item.as_mut().on_event(event))
+        {
+            return true;
+        }
+
         if event.code == KeyCode::Up {
+            self.items[self.selected].on_deselect();
             self.selected = if self.selected == 0 {
                 self.items.len() - 1
             } else {
@@ -66,6 +249,7 @@ impl ConfigMenu {
             };
             true
         } else if event.code == KeyCode::Down {
+            self.items[self.selected].on_deselect();
             self.selected = (self.selected + 1) % self.items.len();
             true
         } else if event.code == KeyCode::Enter {
@@ -74,27 +258,28 @@ impl ConfigMenu {
             }
             true
         } else {
-            self.items
-                .get_mut(self.selected)
-                .is_some_and(|item| item.as_mut().on_event(event))
+            false
         }
     }
 
     fn render(&self, f: &mut Frame, area: Rect) {
-        let items: Vec<ListItem> = self
-            .items
-            .iter()
-            .enumerate()
-            .map(|(idx, item)| {
-                let mut style = Style::default();
-                if idx == self.selected {
-                    style.fg = Some(Color::Yellow);
-                }
-                ListItem::new(item.get_value()).style(style)
-            })
-            .collect();
-        let list = List::new(items).block(Block::default());
-        f.render_widget(list, area);
+        let mut constraints = Vec::new();
+        for item in self.items.iter() {
+            let height = item.get_height();
+            if height == 0 {
+                // This means that the item will instead take up the entire space
+                item.render(f, area, true);
+                return;
+            }
+            constraints.push(Constraint::Length(height));
+        }
+        let layout = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints(constraints)
+            .split(area);
+        for (i, item) in self.items.iter().enumerate() {
+            item.render(f, layout[i], i == self.selected);
+        }
     }
 }
 
@@ -102,6 +287,25 @@ pub fn run(config: Config) -> Result<Config, Box<dyn std::error::Error>> {
     let mut terminal = ratatui::init();
 
     let mut menu = ConfigMenu::default();
+
+    let mut boot_section = ConfigSection {
+        name: "Boot Options".to_string(),
+        items: Vec::new(),
+        selected: None,
+    };
+    let boot_protocols = vec![BootProtocol::Limine, BootProtocol::Linux, BootProtocol::Multiboot2];
+    let selected_protocol = boot_protocols
+        .iter()
+        .position(|p| p == &config.boot_protocol)
+        .unwrap_or(0);
+    boot_section.add_item(Box::new(ConfigChoice::new(
+        "Boot Protocol".to_string(),
+        boot_protocols,
+        selected_protocol,
+    )));
+
+    menu.add_item(Box::new(boot_section));
+
     menu.add_item(Box::new(ConfigToggle {
         name: "Enable debug".to_string(),
         value: config.debug,
@@ -146,15 +350,20 @@ pub fn run(config: Config) -> Result<Config, Box<dyn std::error::Error>> {
         })?;
 
         if let Event::Key(key) = crossterm::event::read()? {
-            if key.code == KeyCode::Char('q') || key.code == KeyCode::Esc {
-                break;
+            if !menu.on_event(key) {
+                if key.code == KeyCode::Char('q') || key.code == KeyCode::Esc {
+                    break;
+                }
             }
-            menu.on_event(key);
         }
     }
     ratatui::restore();
+
+    let boot_options = menu.items[0].get_value().as_list();
+
     Ok(Config {
-        debug: menu.items[0].get_value_type().as_bool(),
-        smp: menu.items[1].get_value_type().as_bool(),
+        boot_protocol: BootProtocol::from_str(&boot_options[0].as_string()).unwrap(),
+        debug: menu.items[1].get_value().as_bool(),
+        smp: menu.items[2].get_value().as_bool(),
     })
 }

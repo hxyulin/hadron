@@ -37,8 +37,13 @@ impl BaseRevision {
     }
 
     pub fn is_supported(&self) -> bool {
-        let rev = unsafe { self.revision.get().read_volatile() };
-        rev == 0
+        self.revision() == 0
+    }
+
+    pub fn revision(&self) -> u64 {
+        // Safety: We know only have access to the limine requests when in a single-threaded
+        // environment, so we can safely read the revision.
+        unsafe { self.revision.get().read_volatile() }
     }
 }
 

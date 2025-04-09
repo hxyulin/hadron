@@ -9,8 +9,19 @@ path = "src/main.rs"
 test = false
 bench = false
 
+[features]
+default = []
+# This feature should never be enabled
+never = []
+
 [dependencies]
 limine.workspace = true
+noto-sans-mono-bitmap = { version = "0.3.1", default-features = false, features = [
+    "regular",
+    "size_16",
+    "unicode-basic-latin",
+    "unicode-specials",
+] }
 
 [build-dependencies]
 menuconfig.workspace = true
