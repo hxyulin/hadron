@@ -22,7 +22,8 @@ fn main() {
     if args.generate_defconfig {
         generate_defconfig(&args.path);
     } else {
-        let config = term::run().unwrap();
+        let config = menuconfig::config::Config::from_file(&args.path);
+        let config = term::run(config).unwrap();
         println!("Writing config to {}", args.path.display());
         write_config(&args.path, &config);
     }

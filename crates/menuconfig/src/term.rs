@@ -98,17 +98,17 @@ impl ConfigMenu {
     }
 }
 
-pub fn run() -> Result<Config, Box<dyn std::error::Error>> {
+pub fn run(config: Config) -> Result<Config, Box<dyn std::error::Error>> {
     let mut terminal = ratatui::init();
 
     let mut menu = ConfigMenu::default();
     menu.add_item(Box::new(ConfigToggle {
         name: "Enable debug".to_string(),
-        value: true,
+        value: config.debug,
     }));
     menu.add_item(Box::new(ConfigToggle {
         name: "Enable SMP".to_string(),
-        value: false,
+        value: config.smp,
     }));
 
     loop {
