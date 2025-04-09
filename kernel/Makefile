@@ -5,9 +5,7 @@ DEBUG := $(shell jq -r '.debug' $(CONFIG_FILE))
 RUSTFLAGS := --target $(TARGET_TRIPLE)
 RUSTENV := CONFIG_FILE="$(CONFIG_FILE)"
 
-ifeq ($(DEBUG), true)
-	RUSTFLAGS += --debug
-else
+ifeq ($(DEBUG), false)
 	RUSTFLAGS += --release
 endif
 

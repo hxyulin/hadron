@@ -5,6 +5,7 @@
 #![test_runner(crate::tests::test_runner)]
 #![reexport_test_harness_main = "test_main"]
 
+pub mod boot;
 pub mod requests;
 pub mod serial;
 

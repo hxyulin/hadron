@@ -3,7 +3,8 @@
 Hadron is a POSIX compliant, secure, and open-source operating system written in Rust.
 
 It is inspired by the [Linux kernel](https://www.kernel.org/), but with the constraints of the [SerenityOS](https://github.com/SerenityOS/serenity) operating system.
-This means that everything implemented in the kernel must be written from scratch, with the exception of the rust 'core', and 'alloc' libraries. 
+This means that everything implemented in the kernel must be written from scratch, with the exception of the rust 'core', and 'alloc' libraries, and other
+utility libraries, that are not directly features of a kernel, or tools designed to be used in a kernel. (e.g. `spin`, `bitflags`, `unwinding`, etc.)
 This does not include build dependencies (Rust, Make, etc.), or tools to debug and run the kernel (Qemu, GDB, etc.).
 
 ## Building
@@ -18,7 +19,7 @@ To build Hadron, run `make` (use `-j` to split the build into multiple threads).
 
 ## Running
 
-To run Hadron, you must have a QEMU emulator installed. 
+To run Hadron, you must have a QEMU emulator installed.
 The emulator must be configured to support the x86_64 architecture.
 
 Once the emulator is installed, you can run Hadron by running `make run` (or `cargo run -p hadron`, although this is not recommended).
