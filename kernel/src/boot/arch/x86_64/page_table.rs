@@ -254,7 +254,6 @@ impl BootstrapPageTable {
         flags: PageTableFlags,
         frame_allocator: &mut BasicFrameAllocator,
     ) {
-        crate::boot::drivers::serial::write_fmt(format_args!("Mapping {:?} to {:?}\n", addr, frame));
         let pml4_index: u16 = addr.p4_index().into();
         let _pdpt = self.get_or_create_pdpt(pml4_index, frame_allocator);
 

@@ -45,12 +45,16 @@ impl<'ctx> BasicFrameAllocator<'ctx> {
     }
 
     /// Allocates a contiguous region of frames, returning the first frame.
-    pub fn allocate_contiguous(&mut self, count: u64) -> Option<PhysFrame> {
+    pub fn allocate_contiguous_mapped(&mut self, count: u64) -> Option<PhysFrame> {
         let total_size = count * Size4KiB::SIZE;
 
         let mut i = 0;
         while i < self.memory_map.size as usize {
             let region = &mut self.memory_map.entries[i];
+
+            if region.base().as_u64() >= 0x0001_0000_0000 {
+                break;
+            }
 
             if region.ty() == MemoryRegionType::Usable && region.length() >= total_size {
                 let frame_addr = region.base();

@@ -7,10 +7,9 @@ pub struct BootInfo {
     pub hhdm_offset: u64,
     pub kernel_start_phys: PhysAddr,
     pub kernel_start_virt: VirtAddr,
-    pub stack_ptr: VirtAddr,
-    pub stack_size: u64,
     pub rsdp_addr: PhysAddr,
     pub memory_map: MemoryMap,
+    pub heap: (VirtAddr, u64),
 }
 
 impl BootInfo {
@@ -19,26 +18,10 @@ impl BootInfo {
             hhdm_offset: 0,
             kernel_start_phys: PhysAddr::new(0),
             kernel_start_virt: VirtAddr::new(0),
-            stack_ptr: VirtAddr::new(0),
-            stack_size: 0,
             rsdp_addr: PhysAddr::new(0),
             memory_map: MemoryMap::default(),
+            heap: (VirtAddr::new(0), 0),
         }
-    }
-}
-
-#[inline]
-#[allow(static_mut_refs)]
-pub(super) fn boot_info() -> &'static BootInfo {
-    debug_assert!(
-        matches!(unsafe { &KERNEL_INFO }, KernelInfo::Boot(_)),
-        "Invalid kernel info"
-    );
-    match unsafe { &KERNEL_INFO } {
-        KernelInfo::Boot(boot_info) => boot_info,
-        _ => unsafe {
-            core::hint::unreachable_unchecked();
-        },
     }
 }
 
