@@ -1,5 +1,7 @@
 use x86_64::{
-    registers::control::Cr3Flags, structures::paging::{page_table::PageTableEntry, FrameDeallocator, PageTable, PageTableFlags, PhysFrame}, PhysAddr, VirtAddr
+    PhysAddr, VirtAddr,
+    registers::control::Cr3Flags,
+    structures::paging::{FrameDeallocator, PageTable, PageTableFlags, PhysFrame, page_table::PageTableEntry},
 };
 
 use super::frame_allocator::BasicFrameAllocator;

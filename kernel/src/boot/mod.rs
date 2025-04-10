@@ -5,6 +5,6 @@
 #[cfg(any(kernel_bootloader = "limine", feature = "never"))]
 pub mod limine;
 
-pub mod drivers;
 pub mod arch;
+pub mod drivers;
 pub mod info;

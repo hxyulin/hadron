@@ -1,9 +1,19 @@
 //! The base info module.
 //! This contains the base KernelInfo struct, which contains information about the kernel.
 
-use crate::boot::info::BootInfo;
+use alloc::vec::Vec;
+use spin::Mutex;
 
-pub struct RuntimeInfo {}
+use crate::{boot::info::BootInfo, devices::framebuffer::Framebuffer};
+
+use super::mem::{frame_allocator::KernelFrameAllocator, page_table::KernelPageTable};
+
+#[derive(Debug)]
+pub struct RuntimeInfo {
+    pub frame_allocator: Mutex<KernelFrameAllocator>,
+    pub page_table: Mutex<KernelPageTable>,
+    pub framebuffers: Vec<Mutex<Framebuffer>>,
+}
 
 #[allow(clippy::large_enum_variant)]
 pub enum KernelInfo {

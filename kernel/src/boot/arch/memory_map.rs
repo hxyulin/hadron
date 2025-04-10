@@ -1,3 +1,4 @@
+use alloc::{sync::Arc, vec::Vec};
 use x86_64::PhysAddr;
 
 #[repr(u64)]

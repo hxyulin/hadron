@@ -21,11 +21,17 @@ extern "x86-interrupt" fn breakpoint_handler(stack_frame: InterruptStackFrame) {
 }
 
 extern "x86-interrupt" fn page_fault_handler(stack_frame: InterruptStackFrame, error_code: PageFaultErrorCode) {
-    serial::write_fmt(format_args!("Page fault with error code {:?}\n{:?}\n", error_code, stack_frame));
+    serial::write_fmt(format_args!(
+        "Page fault with error code {:?}\n{:?}\n",
+        error_code, stack_frame
+    ));
     loop {}
 }
 
 extern "x86-interrupt" fn double_fault_handler(stack_frame: InterruptStackFrame, error_code: u64) -> ! {
-    serial::write_fmt(format_args!("Double fault with error code {:?}\n{:?}\n", error_code, stack_frame));
+    serial::write_fmt(format_args!(
+        "Double fault with error code {:?}\n{:?}\n",
+        error_code, stack_frame
+    ));
     loop {}
 }

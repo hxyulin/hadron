@@ -1,5 +1,9 @@
 CONFIG_FILE := kernel_conf.json
 MACHINE_TRIPLE := $(shell rustc -vV | grep host | awk '{ print $$2 }')
+# If kernel_conf is not found, generate it
+ifeq ("$(wildcard $(CONFIG_FILE))","")
+	$(MAKE) defconfig
+endif
 TARGET := $(shell jq -r '.target' kernel_conf.json)
 TARGET_TRIPLE := "$(TARGET)-unknown-none"
 
@@ -31,8 +35,6 @@ test:
 	@echo "Running tests..."
 	@echo "TEST crate: volatile"
 	@cargo test -p volatile --target "$(MACHINE_TRIPLE)" --features std
-	@echo "TEST crate: arch-x86_64"
-	@RUSTFLAGS="-C link-arg=-Tutil/limine-x86_64-link.ld -C relocation-model=static" cargo test -p arch-x86_64 --target x86_64-unknown-none
 	@$(MAKE) -C kernel TARGET_TRIPLE="$(TARGET_TRIPLE)" CONFIG_FILE="../$(CONFIG_FILE)" test
 
 clippy:

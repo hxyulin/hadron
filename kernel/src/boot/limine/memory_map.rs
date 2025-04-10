@@ -1,6 +1,6 @@
 use x86_64::PhysAddr;
 
-use crate::boot::arch::memory_map::{MemoryMapEntry, MemoryRegionType, MemoryMap};
+use crate::boot::arch::memory_map::{MemoryMap, MemoryMapEntry, MemoryRegionType};
 
 impl From<limine::memory_map::MemoryMapEntryType> for MemoryRegionType {
     fn from(entry_type: limine::memory_map::MemoryMapEntryType) -> Self {
@@ -27,7 +27,6 @@ impl From<&limine::memory_map::MemoryMapEntry> for MemoryMapEntry {
     }
 }
 
-
 impl MemoryMap {
     pub fn parse_from_limine(&mut self, memory_map: &limine::response::MemoryMapResponse) {
         let entries = memory_map.entries();
@@ -38,5 +37,4 @@ impl MemoryMap {
             self.entries[i] = MemoryMapEntry::from(&entry);
         }
     }
-
 }

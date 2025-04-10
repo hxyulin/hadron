@@ -1,5 +1,6 @@
 use limine::request::{
-    BootloaderInfoRequest, ExecutableAddressRequest, ExecutableFileRequest, FirmwareTypeRequest, FramebufferRequest, HhdmRequest, MemoryMapRequest, RequestsEndMarker, RequestsStartMarker, RsdpRequest, StackSizeRequest
+    BootloaderInfoRequest, ExecutableAddressRequest, ExecutableFileRequest, FirmwareTypeRequest, FramebufferRequest,
+    HhdmRequest, MemoryMapRequest, RequestsEndMarker, RequestsStartMarker, RsdpRequest, StackSizeRequest,
 };
 
 #[used]

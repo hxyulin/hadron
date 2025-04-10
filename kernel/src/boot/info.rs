@@ -25,6 +25,21 @@ impl BootInfo {
     }
 }
 
+#[inline]
+#[allow(static_mut_refs)]
+pub(super) fn boot_info() -> &'static BootInfo {
+    debug_assert!(
+        matches!(unsafe { &KERNEL_INFO }, KernelInfo::Boot(_)),
+        "Invalid kernel info"
+    );
+    match unsafe { &KERNEL_INFO } {
+        KernelInfo::Boot(boot_info) => boot_info,
+        _ => unsafe {
+            core::hint::unreachable_unchecked();
+        },
+    }
+}
+
 /// # Safety
 ///
 /// This function is only safe to call if there are no other references to the boot info.

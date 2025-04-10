@@ -8,7 +8,6 @@ pub enum BootProtocol {
     Linux,
 }
 
-
 impl FromStr for BootProtocol {
     type Err = String;
 
@@ -31,7 +30,6 @@ impl std::fmt::Display for BootProtocol {
         }
     }
 }
-
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum Target {
