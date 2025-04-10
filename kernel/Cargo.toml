@@ -16,6 +16,7 @@ never = []
 
 [dependencies]
 limine.workspace = true
+volatile.workspace = true
 noto-sans-mono-bitmap = { version = "0.3.1", default-features = false, features = [
     "regular",
     "size_16",

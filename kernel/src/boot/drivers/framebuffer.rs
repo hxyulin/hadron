@@ -1,4 +1,5 @@
 use noto_sans_mono_bitmap::{FontWeight, RasterHeight, RasterizedChar, get_raster, get_raster_width};
+use volatile::slice::VolatileSlice;
 
 /// Additional vertical space between lines
 const LINE_SPACING: usize = 1;
@@ -49,12 +50,15 @@ pub struct FramebufferInfo {
 
 pub struct Framebuffer {
     info: FramebufferInfo,
-    buffer: &'static mut [u8],
+    buffer: &'static mut VolatileSlice<u8>,
 }
 
 impl Framebuffer {
     pub fn new(info: FramebufferInfo, buffer: &'static mut [u8]) -> Self {
-        Self { info, buffer }
+        Self {
+            info,
+            buffer: VolatileSlice::from_slice_mut(buffer),
+        }
     }
 
     pub fn write_pixel(&mut self, x: u32, y: u32, color: u32) {
@@ -62,9 +66,9 @@ impl Framebuffer {
         match self.info.pixel_format {
             PixelFormat::RGB => {
                 let color = color as u32;
-                self.buffer[offset] = (color & 0xFF) as u8;
-                self.buffer[offset + 1] = ((color >> 8) & 0xFF) as u8;
-                self.buffer[offset + 2] = ((color >> 16) & 0xFF) as u8;
+                self.buffer[offset].set((color & 0xFF) as u8);
+                self.buffer[offset + 1].set(((color >> 8) & 0xFF) as u8);
+                self.buffer[offset + 2].set(((color >> 16) & 0xFF) as u8);
             }
         }
     }
