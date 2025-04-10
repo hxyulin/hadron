@@ -8,6 +8,7 @@ pub enum BootProtocol {
     Linux,
 }
 
+
 impl FromStr for BootProtocol {
     type Err = String;
 
@@ -31,9 +32,40 @@ impl std::fmt::Display for BootProtocol {
     }
 }
 
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum Target {
+    #[serde(rename = "x86_64")]
+    X86_64,
+    #[serde(rename = "aarch64")]
+    AArch64,
+}
+
+impl FromStr for Target {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "x86_64" => Ok(Target::X86_64),
+            "aarch64" => Ok(Target::AArch64),
+            _ => Err(format!("Invalid target: {}", s)),
+        }
+    }
+}
+
+impl std::fmt::Display for Target {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Target::X86_64 => write!(f, "x86_64"),
+            Target::AArch64 => write!(f, "aarch64"),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
     pub boot_protocol: BootProtocol,
+    pub target: Target,
     pub debug: bool,
     pub smp: bool,
 }
@@ -43,6 +75,7 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             boot_protocol: BootProtocol::Limine,
+            target: Target::X86_64,
             debug: false,
             smp: false,
         }

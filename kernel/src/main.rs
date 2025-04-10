@@ -10,8 +10,11 @@ extern "C" fn kernel_main() -> ! {
 
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
-    let mut serial = unsafe { hadron_kernel::serial::SerialPort::new(0x3F8) };
-    use core::fmt::Write;
-    writeln!(serial, "panic: {}", info).unwrap();
+    #[cfg(target_arch = "x86_64")]
+    {
+        use core::fmt::Write;
+        let mut serial = unsafe { hadron_kernel::serial::SerialPort::new(0x3F8) };
+        writeln!(serial, "panic: {}", info).unwrap();
+    }
     loop {}
 }

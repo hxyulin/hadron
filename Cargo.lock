@@ -59,6 +59,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "arch-x86_64"
+version = "0.0.1"
+dependencies = [
+ "bitflags",
+ "hadron-test",
+ "kernel-base",
+]
+
+[[package]]
 name = "autocfg"
 version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -306,10 +315,22 @@ checksum = "d9c4f5dac5e15c24eb999c26181a6ca40b39fe946cbe4c263c7209467bc83af2"
 name = "hadron-kernel"
 version = "0.0.1"
 dependencies = [
+ "arch-x86_64",
+ "kernel-base",
+ "lazy_static",
  "limine",
  "menuconfig",
  "noto-sans-mono-bitmap",
+ "static_assertions",
  "volatile",
+]
+
+[[package]]
+name = "hadron-test"
+version = "0.0.1"
+dependencies = [
+ "lazy_static",
+ "spin 0.10.0",
 ]
 
 [[package]]
@@ -374,6 +395,22 @@ name = "itoa"
 version = "1.0.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4a5f13b858c8d314ee3e8f639011f7ccefe71f97f96e50151fb991f267928e2c"
+
+[[package]]
+name = "kernel-base"
+version = "0.0.1"
+dependencies = [
+ "static_assertions",
+]
+
+[[package]]
+name = "lazy_static"
+version = "1.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe"
+dependencies = [
+ "spin 0.9.8",
+]
 
 [[package]]
 name = "libc"
@@ -659,6 +696,21 @@ name = "smallvec"
 version = "1.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8917285742e9f3e1683f0a9c4e6b57960b7314d0b08d30d1ecd426713ee2eee9"
+
+[[package]]
+name = "spin"
+version = "0.9.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6980e8d7511241f8acf4aebddbb1ff938df5eebe98691418c4468d0b72a96a67"
+
+[[package]]
+name = "spin"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d5fe4ccb98d9c292d56fec89a5e07da7fc4cf0dc11e156b41793132775d3e591"
+dependencies = [
+ "lock_api",
+]
 
 [[package]]
 name = "static_assertions"

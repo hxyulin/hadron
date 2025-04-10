@@ -5,6 +5,7 @@
 #![test_runner(crate::tests::test_runner)]
 #![reexport_test_harness_main = "test_main"]
 
+pub mod base;
 /// Boot shouldn't be accessible from the main kernel logic
 pub(crate) mod boot;
 pub mod serial;
@@ -17,11 +18,6 @@ mod tests {
         for test in tests {
             test();
         }
-    }
-
-    #[test_case]
-    fn test_panic() {
-        panic!("test panic");
     }
 
     #[panic_handler]

@@ -18,7 +18,8 @@ run:
 	cargo run -p hadron-kernel $(RUSTFLAGS)
 
 test:
-	cargo test -p hadron-kernel $(RUSTFLAGS)
+	@echo "TEST crate: hadron-kernel"
+	@cargo test -p hadron-kernel $(RUSTFLAGS)
 
 clippy:
 	cargo clippy -p hadron-kernel $(RUSTFLAGS)

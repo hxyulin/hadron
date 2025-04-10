@@ -3,7 +3,7 @@ use std::str::FromStr;
 use crossterm::event::{Event, KeyCode, KeyEvent};
 use ratatui::{prelude::*, widgets::*};
 
-use crate::config::{BootProtocol, Config};
+use crate::config::{BootProtocol, Config, Target};
 
 #[derive(Debug, Clone)]
 enum ConfigValue {
@@ -208,6 +208,20 @@ impl ConfigItem for ConfigSection {
             } else if event.code == KeyCode::Esc {
                 self.selected = None;
                 return true;
+            } else if event.code == KeyCode::Up {
+                self.selected.replace(if selected == 0 {
+                    self.items.len() - 1
+                } else {
+                    selected - 1
+                });
+                return true;
+            } else if event.code == KeyCode::Down {
+                self.selected.replace(if selected == self.items.len() - 1 {
+                    0
+                } else {
+                    selected + 1
+                });
+                return true;
             }
         }
 
@@ -303,6 +317,13 @@ pub fn run(config: Config) -> Result<Config, Box<dyn std::error::Error>> {
         boot_protocols,
         selected_protocol,
     )));
+    let targets = vec![Target::X86_64, Target::AArch64];
+    let selected_target = targets.iter().position(|t| t == &config.target).unwrap_or(0);
+    boot_section.add_item(Box::new(ConfigChoice::new(
+        "Target".to_string(),
+        targets,
+        selected_target,
+    )));
 
     menu.add_item(Box::new(boot_section));
 
@@ -363,6 +384,7 @@ pub fn run(config: Config) -> Result<Config, Box<dyn std::error::Error>> {
 
     Ok(Config {
         boot_protocol: BootProtocol::from_str(&boot_options[0].as_string()).unwrap(),
+        target: Target::from_str(&boot_options[1].as_string()).unwrap(),
         debug: menu.items[1].get_value().as_bool(),
         smp: menu.items[2].get_value().as_bool(),
     })

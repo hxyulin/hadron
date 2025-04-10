@@ -1,0 +1,31 @@
+[package]
+name = "hadron-test"
+version.workspace = true
+edition.workspace = true
+publish = true
+
+[lib]
+test = false
+bench = false
+
+[dependencies]
+lazy_static.workspace = true
+spin = "0.10.0"
+
+[package.metadata.qemu_runner]
+limine-branch = "v8.x-binary"
+config-file = "limine.conf"
+test-success-exit-code = 33
+test-args = [
+    "-device",
+    "isa-debug-exit,iobase=0xf4,iosize=0x04",
+]
+
+run-command = [
+    "qemu-system-x86_64",
+    "-cdrom",
+    "{}",
+    "-serial",
+    "stdio",
+    "-no-reboot",
+]

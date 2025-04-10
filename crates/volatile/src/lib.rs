@@ -2,6 +2,6 @@
 #![allow(internal_features)]
 #![feature(core_intrinsics)]
 
-pub mod slice;
 pub mod cell;
 pub mod ptr;
+pub mod slice;

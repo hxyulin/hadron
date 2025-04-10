@@ -100,10 +100,7 @@ pub struct FileIter<'a> {
 impl<'a> FileIter<'a> {
     /// Creates a new `FileIter` from a slice of file pointers.
     pub(crate) fn new(files: &'a [NonNull<File>]) -> Self {
-        Self {
-            files,
-            index: 0,
-        }
+        Self { files, index: 0 }
     }
 }
 

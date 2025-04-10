@@ -17,6 +17,15 @@ never = []
 [dependencies]
 limine.workspace = true
 volatile.workspace = true
+kernel-base.workspace = true
+lazy_static.workspace = true
+
+arch-x86_64 = { workspace = true, optional = true }
+
+[target.'cfg(target_arch = "x86_64")'.dependencies]
+arch-x86_64.workspace = true
+
+
 noto-sans-mono-bitmap = { version = "0.3.1", default-features = false, features = [
     "regular",
     "size_16",
@@ -26,6 +35,9 @@ noto-sans-mono-bitmap = { version = "0.3.1", default-features = false, features 
 
 [build-dependencies]
 menuconfig.workspace = true
+
+[dev-dependencies]
+static_assertions.workspace = true
 
 [package.metadata.qemu_runner]
 limine-branch = "v8.x-binary"

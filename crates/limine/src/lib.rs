@@ -7,12 +7,12 @@
 // This crate is designed to be used in a bare-metal environment.
 #![no_std]
 
-pub mod request;
-pub mod response;
+pub mod file;
 pub mod framebuffer;
 pub mod memory_map;
-pub mod file;
 pub mod module;
+pub mod request;
+pub mod response;
 
 use core::cell::UnsafeCell;
 
@@ -61,4 +61,3 @@ impl BaseRevision {
 unsafe impl Sync for BaseRevision {}
 // SAFETY: The base revision is only ever accessed in a single-threaded environment.
 unsafe impl Send for BaseRevision {}
-
