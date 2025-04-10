@@ -1,16 +1,21 @@
+//! Types for representing files.
 use core::{
     ffi::{CStr, c_char},
     ptr::NonNull,
 };
 
+/// A file that is passed to the kernel.
+///
+/// This represents a file on the filesystem.
 #[repr(C)]
 pub struct File {
+    /// The revision of the file.
     pub revision: u64,
     /// The address of the file.
     /// Always 4KiB aligned.
-    address: u64,
+    pub address: u64,
     /// The size of the file.
-    size: u64,
+    pub size: u64,
     /// The path of the file, with a leading `/`.
     path: *const c_char,
     /// The command line passed to the file.
@@ -36,30 +41,48 @@ pub struct File {
 }
 
 impl File {
+    /// Returns the path of the file with the leading `/`.
     pub fn path(&self) -> &str {
         // SAFETY: The path pointer is valid because it is a pointer to a string literal.
         unsafe { CStr::from_ptr(self.path).to_str().unwrap() }
     }
 
+    /// Returns the command line passed to the file.
     pub fn cmdline(&self) -> &str {
         // SAFETY: The cmdline pointer is valid because it is a pointer to a string literal.
         unsafe { CStr::from_ptr(self.cmdline).to_str().unwrap() }
     }
 
+    /// Returns the media type of the file.
+    /// See [`MediaType`] for more information.
     pub fn media_type(&self) -> MediaType {
         // SAFETY: The media type is a valid enum variant (guaranteed by the protocol).
         unsafe { core::mem::transmute(self.media_type) }
     }
+
+    /// Returns the TFTP server IP address and port.
+    pub fn tftp_info(&self) -> Option<(u32, u32)> {
+        if self.tftp_ip != 0 {
+            Some((self.tftp_ip, self.tftp_port))
+        } else {
+            None
+        }
+    }
 }
 
+/// The media type of a file.
 #[repr(u32)]
 #[derive(Debug, Clone, Copy)]
 pub enum MediaType {
+    /// A generic file.
     Generic = 0,
+    /// A floppy disk.
     Optical = 1,
+    /// A TFTP server.
     Tftp = 2,
 }
 
+/// A UUID.
 #[repr(C)]
 struct Uuid {
     a: u32,
@@ -68,16 +91,16 @@ struct Uuid {
     d: [u8; 8],
 }
 
+/// An iterator over the files.
 pub struct FileIter<'a> {
-    revision: u64,
     files: &'a [NonNull<File>],
     index: usize,
 }
 
 impl<'a> FileIter<'a> {
-    pub(crate) fn new(revision: u64, files: &'a [NonNull<File>]) -> Self {
+    /// Creates a new `FileIter` from a slice of file pointers.
+    pub(crate) fn new(files: &'a [NonNull<File>]) -> Self {
         Self {
-            revision,
             files,
             index: 0,
         }

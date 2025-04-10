@@ -6,43 +6,64 @@ use core::{
 use crate::cell::VolatileCell;
 
 /// A wrapper around a slice that is volatile.
+/// This implement slice functions that can be used to do volatile operations on the slice.
 #[repr(transparent)]
 #[derive(Debug)]
 pub struct VolatileSlice<T>([T]);
 
 impl<T> VolatileSlice<T> {
+    /// Creates a `&VolatileSlice<T>` from a reference to a slice of type `T`.
     pub fn from_slice(slice: &[T]) -> &Self {
         // SAFETY: The pointer is valid and aligned, and the length is within
         // Technically transmuting directly is also valid, because of the repr(transparent)
         unsafe { &*(slice as *const [T] as *const Self) }
     }
 
+    /// Creates a `&mut VolatileSlice<T>` from a mutable reference to a slice of type `T`.
     pub fn from_slice_mut(slice: &mut [T]) -> &mut Self {
         // SAFETY: The pointer is valid and aligned, and the length is within
         // Technically transmuting directly is also valid, because of the repr(transparent)
         unsafe { &mut *(slice as *mut [T] as *mut Self) }
     }
 
+    /// Returns the length of the slice, which is the number of elements in the slice.
     pub fn len(&self) -> usize {
         self.0.len()
     }
 
+    /// Copies the elements from `other` into `self`
+    ///
+    /// # Panics
+    ///
+    /// Panics if `other.len()` is not equal to `self.len()`.
     pub fn copy_from_slice(&mut self, other: &[T]) {
-        assert!(other.len() <= self.len());
+        assert!(other.len() == self.len());
         // SAFETY: The pointer is valid and aligned, and the length is within
         unsafe {
-            volatile_copy_nonoverlapping_memory(self.as_mut_ptr(), other.as_ptr(), other.len());
+            volatile_copy_nonoverlapping_memory(self.as_mut_ptr(), other.as_ptr(), self.len());
         }
     }
 
+    /// Copies the elements from `self` into `other`
+    ///
+    /// # Panics
+    ///
+    /// Panics if `other.len()` is not equal to `self.len()`.
     pub fn copy_to_slice(&self, other: &mut [T]) {
-        assert!(other.len() <= self.len());
+        assert!(other.len() == self.len());
         // SAFETY: The pointer is valid and aligned, and the length is within
         unsafe {
-            volatile_copy_nonoverlapping_memory(other.as_mut_ptr(), self.as_ptr(), other.len());
+            volatile_copy_nonoverlapping_memory(other.as_mut_ptr(), self.as_ptr(), self.len());
         }
     }
 
+    /// Copies elements within the slice, from `src` to `dst`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `src` is out of bounds.
+    /// Panics if start is greater than end.
+    /// Panics if end is greater than the length of the slice.
     pub fn copy_within<R: RangeBounds<usize>>(&mut self, src: R, dst: usize) {
         let start = match src.start_bound() {
             Bound::Included(&start) => start,
@@ -62,16 +83,21 @@ impl<T> VolatileSlice<T> {
         }
     }
 
+    /// Returns a raw pointer to the value.
     pub fn as_ptr(&self) -> *const T {
         self.0.as_ptr()
     }
 
+    /// Returns a raw mut pointer to the value.
     pub fn as_mut_ptr(&mut self) -> *mut T {
         self.0.as_mut_ptr()
     }
 }
 
 impl VolatileSlice<u8> {
+    /// Fills the slice with the given value.
+    ///
+    /// This is only implemented for types that are byte-sized, because it uses the `volatile_set_memory` intrinsic.
     pub fn fill(&mut self, value: u8) {
         unsafe { volatile_set_memory(self.as_mut_ptr(), value, self.len()) }
     }
@@ -156,6 +182,46 @@ where
 #[cfg(all(test, feature = "std"))]
 mod tests {
     use super::*;
+
+    #[test]
+    #[should_panic]
+    fn test_volatile_slice_out_of_bounds() {
+        let mut slice = [0u8; 10];
+        let vslice = VolatileSlice::from_slice_mut(&mut slice);
+        vslice[10].get();
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_volatile_slice_range_out_of_bounds() {
+        let mut slice = [0u8; 10];
+        let vslice = VolatileSlice::from_slice_mut(&mut slice);
+        vslice[0..11].len();
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_volatile_slice_copy_within_out_of_bounds() {
+        let mut slice = [0u8; 10];
+        let vslice = VolatileSlice::from_slice_mut(&mut slice);
+        vslice.copy_within(0..11, 0);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_volatile_slice_copy_from_slice_different_length() {
+        let mut slice = [0u8; 10];
+        let vslice = VolatileSlice::from_slice_mut(&mut slice);
+        vslice.copy_from_slice(&[0u8; 11]);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_volatile_slice_copy_to_slice_different_length() {
+        let mut slice = [0u8; 10];
+        let vslice = VolatileSlice::from_slice_mut(&mut slice);
+        vslice.copy_to_slice(&mut [0u8; 11]);
+    }
 
     #[test]
     fn test_volatile_slice() {

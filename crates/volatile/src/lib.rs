@@ -4,3 +4,4 @@
 
 pub mod slice;
 pub mod cell;
+pub mod ptr;
