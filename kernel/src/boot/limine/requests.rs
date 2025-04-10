@@ -1,6 +1,5 @@
 use limine::request::{
-    BootloaderInfoRequest, ExecutableAddressRequest, ExecutableFileRequest, FirmwareTypeRequest, FramebufferRequest,
-    HhdmRequest, MemoryMapRequest, RequestsEndMarker, RequestsStartMarker, StackSizeRequest,
+    BootloaderInfoRequest, ExecutableAddressRequest, ExecutableFileRequest, FirmwareTypeRequest, FramebufferRequest, HhdmRequest, MemoryMapRequest, RequestsEndMarker, RequestsStartMarker, RsdpRequest, StackSizeRequest
 };
 
 #[used]
@@ -19,9 +18,11 @@ pub static BOOTLOADER_INFO: BootloaderInfoRequest = BootloaderInfoRequest::new()
 #[unsafe(link_section = ".requests")]
 pub static FIRMWARE_TYPE: FirmwareTypeRequest = FirmwareTypeRequest::new();
 
+pub const KERNEL_STACK_SIZE: usize = 0x1000 * 16;
+
 #[used]
 #[unsafe(link_section = ".requests")]
-pub static _STACK_SIZE: StackSizeRequest = StackSizeRequest::new(0x10000);
+pub static _STACK_SIZE: StackSizeRequest = StackSizeRequest::new(KERNEL_STACK_SIZE as u64);
 
 #[used]
 #[unsafe(link_section = ".requests")]
@@ -42,6 +43,10 @@ pub static EXECUTABLE_FILE: ExecutableFileRequest = ExecutableFileRequest::new()
 #[used]
 #[unsafe(link_section = ".requests")]
 pub static EXECUTABLE_ADDRESS: ExecutableAddressRequest = ExecutableAddressRequest::new();
+
+#[used]
+#[unsafe(link_section = ".requests")]
+pub static RSDP: RsdpRequest = RsdpRequest::new();
 
 #[used]
 #[unsafe(link_section = ".requests_end_marker")]

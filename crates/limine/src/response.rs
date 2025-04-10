@@ -150,7 +150,7 @@ impl MemoryMapResponse {
     }
 
     /// Returns an iterator over the memory map entries.
-    pub fn memory_map(&self) -> MemoryMapIter {
+    pub fn entries(&self) -> MemoryMapIter {
         MemoryMapIter::new(unsafe { core::slice::from_raw_parts(self.memory_map.as_ptr(), self.count()) })
     }
 }

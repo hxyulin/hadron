@@ -1,8 +1,0 @@
-[package]
-name = "kernel-base"
-version.workspace = true
-edition.workspace = true
-publish = false
-
-[dependencies]
-static_assertions.workspace = true

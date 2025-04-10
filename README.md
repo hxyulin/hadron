@@ -2,11 +2,6 @@
 
 Hadron is a POSIX compliant, secure, and open-source operating system written in Rust.
 
-It is inspired by the [Linux kernel](https://www.kernel.org/), but with the constraints of the [SerenityOS](https://github.com/SerenityOS/serenity) operating system.
-This means that everything implemented in the kernel must be written from scratch, with the exception of the rust 'core', and 'alloc' libraries, and other
-utility libraries, that are not directly features of a kernel, or tools designed to be used in a kernel. (e.g. `spin`, `bitflags`, `unwinding`, etc.)
-This does not include build dependencies (Rust, Make, etc.), or tools to debug and run the kernel (Qemu, GDB, etc.).
-
 ## Building
 
 Building Hadron is supported on Linux and macOS.

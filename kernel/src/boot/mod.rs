@@ -3,6 +3,8 @@
 /// We use any here so that IDE services don't break, but the feature `never` is actually never used
 
 #[cfg(any(kernel_bootloader = "limine", feature = "never"))]
-pub(crate) mod limine;
+pub mod limine;
 
-pub(crate) mod drivers;
+pub mod drivers;
+pub mod arch;
+pub mod info;

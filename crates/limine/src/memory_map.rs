@@ -33,7 +33,7 @@ pub enum MemoryMapEntryType {
     /// A memory region that can be reclaimed after the bootloader info is no longer needed.
     BootloaderReclaimable = 5,
     /// A memory region that is used by the kernel and modules.
-    KernelAndModule = 6,
+    KernelAndModules = 6,
     /// A memory region that is used by the framebuffer.
     Framebuffer = 7,
 }
@@ -48,6 +48,10 @@ impl<'a> MemoryMapIter<'a> {
     /// Creates a new `MemoryMapIter` from a slice of memory map pointers.
     pub(crate) fn new(memory_map: &'a [NonNull<MemoryMapEntry>]) -> Self {
         Self { memory_map, index: 0 }
+    }
+
+    pub fn len(&self) -> usize {
+        self.memory_map.len()
     }
 }
 

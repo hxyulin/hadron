@@ -17,14 +17,7 @@ never = []
 [dependencies]
 limine.workspace = true
 volatile.workspace = true
-kernel-base.workspace = true
 lazy_static.workspace = true
-
-arch-x86_64 = { workspace = true, optional = true }
-
-[target.'cfg(target_arch = "x86_64")'.dependencies]
-arch-x86_64.workspace = true
-
 
 noto-sans-mono-bitmap = { version = "0.3.1", default-features = false, features = [
     "regular",
@@ -32,6 +25,10 @@ noto-sans-mono-bitmap = { version = "0.3.1", default-features = false, features 
     "unicode-basic-latin",
     "unicode-specials",
 ] }
+x86_64 = "0.15.2"
+uart_16550 = { version = "0.3.2", features = ["nightly"] }
+spin = "0.10.0"
+linked_list_allocator = "0.10.5"
 
 [build-dependencies]
 menuconfig.workspace = true
