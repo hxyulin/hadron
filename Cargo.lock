@@ -376,6 +376,7 @@ version = "0.0.1"
 dependencies = [
  "acpi",
  "backtrace",
+ "bit_field",
  "bitflags 2.9.0",
  "chrono",
  "hadron-test",

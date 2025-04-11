@@ -6,8 +6,7 @@
 #![reexport_test_harness_main = "test_main"]
 #![allow(unexpected_cfgs, dead_code)]
 
-use base::{mem::alloc::KernelAllocator, arch::acpi};
-use linked_list_allocator::LockedHeap;
+use base::{arch::acpi, mem::alloc::KernelAllocator};
 
 pub mod base;
 pub mod boot;
@@ -25,7 +24,7 @@ compile_error!("No bootloader selected");
 extern crate alloc;
 
 #[global_allocator]
-static ALLOCATOR: KernelAllocator = KernelAllocator::empty();
+pub static ALLOCATOR: KernelAllocator = KernelAllocator::empty();
 
 #[derive(Debug, Clone, Copy)]
 pub struct KernelParams {

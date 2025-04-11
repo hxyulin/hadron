@@ -127,10 +127,14 @@ fn populate_boot_info() {
     let boot_info = unsafe { boot_info_mut() };
     let hhdm = requests::HHDM.get_response().unwrap();
     boot_info.hhdm_offset = hhdm.offset;
+    print!(boot_info, "HHDM offset: {:#x}\n", boot_info.hhdm_offset);
     let kernel_addr = requests::EXECUTABLE_ADDRESS.get_response().unwrap();
     boot_info.kernel_start_phys = PhysAddr::new(kernel_addr.physical_address);
     boot_info.kernel_start_virt = VirtAddr::new(kernel_addr.virtual_address);
-    print!(boot_info, "Kernel loaded at {:?} -> {:?}\n", boot_info.kernel_start_phys, boot_info.kernel_start_virt);
+    print!(
+        boot_info,
+        "Kernel loaded at {:?} -> {:?}\n", boot_info.kernel_start_phys, boot_info.kernel_start_virt
+    );
     print!(boot_info, "Parsing memory map...\n");
     boot_info
         .memory_map
@@ -148,7 +152,13 @@ fn allocate_pages() -> ! {
 
     let start_phys = boot_info.kernel_start_phys;
     let kernel_size = get_kernel_size();
-    print!(boot_info, "Kernel size: {:#x} + {:#x} = {:#x}\n", kernel_size.0, kernel_size.1, kernel_size.0 + kernel_size.1);
+    print!(
+        boot_info,
+        "Kernel size: {:#x} + {:#x} = {:#x}\n",
+        kernel_size.0,
+        kernel_size.1,
+        kernel_size.0 + kernel_size.1
+    );
     // Map text section with execute permissions
     for i in 0..kernel_size.0 as u64 / Size4KiB::SIZE {
         let offset = i * Size4KiB::SIZE;

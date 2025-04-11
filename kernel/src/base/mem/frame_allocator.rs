@@ -27,7 +27,7 @@ impl KernelFrameAllocator {
 
     /// Returns the total amount of memory in the system (in pages)
     pub fn total_pages(&self) -> u64 {
-        self.memory_map.entries.iter().map(|entry| entry.pages).sum()
+        self.memory_map.entries.iter().map(|entry| entry.pages()).sum()
     }
 }
 

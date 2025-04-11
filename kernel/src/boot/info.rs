@@ -2,7 +2,7 @@ use linked_list_allocator::LockedHeap;
 use x86_64::{PhysAddr, VirtAddr};
 
 use super::{
-    arch::memory_map::MemoryMap,
+    arch::memory_map::BootstrapMemoryMap,
     drivers::{framebuffer::FramebufferWriter, serial::SerialWriter},
 };
 use crate::base::info::{KERNEL_INFO, KernelInfo};
@@ -15,7 +15,7 @@ pub struct BootInfo {
     pub kernel_start_phys: PhysAddr,
     pub kernel_start_virt: VirtAddr,
     pub rsdp_addr: PhysAddr,
-    pub memory_map: MemoryMap,
+    pub memory_map: BootstrapMemoryMap,
     pub heap: (VirtAddr, u64),
     pub allocator: LockedHeap,
 }
@@ -30,7 +30,7 @@ impl BootInfo {
             kernel_start_phys: PhysAddr::new(0),
             kernel_start_virt: VirtAddr::new(0),
             rsdp_addr: PhysAddr::new(0),
-            memory_map: MemoryMap::default(),
+            memory_map: BootstrapMemoryMap::default(),
             heap: (VirtAddr::new(0), 0),
             allocator: LockedHeap::empty(),
         }

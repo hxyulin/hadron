@@ -1,4 +1,4 @@
-use chrono::{DateTime, NaiveDate, NaiveDateTime, NaiveTime, TimeZone, Utc};
+use chrono::{DateTime, NaiveDate, NaiveDateTime, NaiveTime, Utc};
 use x86_64::instructions::port::Port;
 
 pub type UtcTime = DateTime<Utc>;
@@ -46,8 +46,8 @@ pub fn read_time() -> UtcTime {
         year = bcd_to_binary(year);
     }
 
-    let naive_date = NaiveDate::from_ymd(year as i32 + 2000, month as u32, day as u32);
-    let naive_time = NaiveTime::from_hms(hours as u32, minutes as u32, seconds as u32);
+    let naive_date = NaiveDate::from_ymd_opt(year as i32 + 2000, month as u32, day as u32).unwrap();
+    let naive_time = NaiveTime::from_hms_opt(hours as u32, minutes as u32, seconds as u32).unwrap();
     let naive_date_time = NaiveDateTime::new(naive_date, naive_time);
     UtcTime::from_naive_utc_and_offset(naive_date_time, Utc)
 }

@@ -1,4 +1,3 @@
-use alloc::{sync::Arc, vec::Vec};
 use x86_64::PhysAddr;
 
 #[repr(u64)]
@@ -35,6 +34,14 @@ impl MemoryMapEntry {
         }
     }
 
+    pub const fn new(base: PhysAddr, length: u64, memory_type: MemoryRegionType) -> Self {
+        Self {
+            base,
+            length,
+            memory_type,
+        }
+    }
+
     pub fn base(&self) -> PhysAddr {
         self.base
     }
@@ -57,13 +64,30 @@ impl MemoryMapEntry {
 }
 
 #[derive(Clone)]
-pub struct MemoryMap {
+pub struct BootstrapMemoryMap {
     // TODO: Instead of storing fixed size, we can store usable entries and just store a reference to the actual memory map for the bootloader until we have the heap
     pub(crate) size: u64,
     pub(crate) entries: [MemoryMapEntry; Self::SIZE],
 }
 
-impl core::fmt::Debug for MemoryMap {
+impl BootstrapMemoryMap {
+    pub fn new(entries: &[MemoryMapEntry]) -> Self {
+        let size = entries.len().min(Self::SIZE as usize);
+        let mut memory_map = Self {
+            size: size as u64,
+            entries: [MemoryMapEntry::default(); Self::SIZE],
+        };
+        for (i, entry) in entries.iter().enumerate() {
+            if i >= size {
+                break;
+            }
+            memory_map.entries[i] = *entry;
+        }
+        memory_map
+    }
+}
+
+impl core::fmt::Debug for BootstrapMemoryMap {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let mut debug_list = f.debug_list();
         for (idx, entry) in self.iter().enumerate() {
@@ -76,7 +100,7 @@ impl core::fmt::Debug for MemoryMap {
     }
 }
 
-impl MemoryMap {
+impl BootstrapMemoryMap {
     pub const fn default() -> Self {
         Self {
             size: 0,
@@ -93,7 +117,7 @@ impl MemoryMap {
     }
 }
 
-impl MemoryMap {
+impl BootstrapMemoryMap {
     pub const SIZE: usize = 128;
 
     pub fn iter(&self) -> MemoryMapIter {
@@ -116,13 +140,13 @@ impl MemoryMap {
 pub struct MemoryMapIter<'a> {
     end: *const MemoryMapEntry,
     current: *const MemoryMapEntry,
-    phantom: core::marker::PhantomData<&'a MemoryMap>,
+    phantom: core::marker::PhantomData<&'a BootstrapMemoryMap>,
 }
 
 pub struct MemoryMapIterMut<'a> {
     end: *mut MemoryMapEntry,
     current: *mut MemoryMapEntry,
-    phantom: core::marker::PhantomData<&'a mut MemoryMap>,
+    phantom: core::marker::PhantomData<&'a mut BootstrapMemoryMap>,
 }
 
 impl<'a> Iterator for MemoryMapIter<'a> {

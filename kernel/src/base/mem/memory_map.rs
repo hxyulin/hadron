@@ -1,4 +1,4 @@
-use crate::boot::arch::memory_map::{MemoryMap as BootstrapMemoryMap, MemoryRegionType};
+use crate::boot::arch::memory_map::{BootstrapMemoryMap, MemoryRegionType};
 use alloc::vec::Vec;
 use x86_64::{
     PhysAddr,
@@ -17,24 +17,28 @@ impl MemoryMap {}
 pub struct MemoryRegion {
     pub(super) base: PhysAddr,
     pub(super) bitmap: Bitmap,
-    pub(super) pages: u64,
 }
 
 impl MemoryRegion {
     pub fn from_base_and_length(base: PhysAddr, length: u64) -> Self {
         let pages = length / Size4KiB::SIZE;
         let bitmap = Bitmap::new(pages as usize);
-        Self { base, bitmap, pages }
+        Self { base, bitmap }
+    }
+
+    pub fn pages(&self) -> u64 {
+        self.bitmap.size() as u64
     }
 }
 
 impl MemoryRegion {
     pub(super) fn contains(&self, addr: PhysAddr) -> bool {
-        addr >= self.base && addr < self.base + self.pages * Size4KiB::SIZE
+        addr >= self.base && addr < self.base + self.pages() * Size4KiB::SIZE
     }
 
     pub(super) fn allocate(&mut self) -> Option<usize> {
         let idx = self.bitmap.find_free()?;
+        log::debug!("Idx: {idx}");
         self.bitmap.set(idx, true);
         Some(idx)
     }
@@ -45,22 +49,26 @@ impl MemoryRegion {
 }
 
 #[derive(Clone)]
-pub struct Bitmap(Vec<u64>);
+pub struct Bitmap(Vec<u64>, usize);
 
 impl Bitmap {
     pub fn new(size: usize) -> Self {
         let len = size.div_ceil(64);
-        Self(alloc::vec![0; len])
+        Self(alloc::vec![0; len], size)
+    }
+
+    pub fn size(&self) -> usize {
+        self.1
     }
 
     pub fn set(&mut self, idx: usize, value: bool) {
-        let idx = idx / 64;
         let bit = idx % 64;
-        let byte = idx / 8;
+        let idx = idx / 64;
+        assert!(idx < self.1);
         if value {
-            self.0[byte] |= 1 << bit;
+            self.0[idx] |= 1 << bit;
         } else {
-            self.0[byte] &= !(1 << bit);
+            self.0[idx] &= !(1 << bit);
         }
     }
 
@@ -78,8 +86,13 @@ impl Bitmap {
                 continue;
             }
             for bit in 0..64 {
+                let idx = idx * 64 + bit;
+                if idx >= self.1 {
+                    return None;
+                }
+
                 if (byte & (1 << bit)) == 0 {
-                    return Some(idx * 64 + bit);
+                    return Some(idx);
                 }
             }
         }

@@ -2,14 +2,14 @@ use x86_64::structures::paging::{FrameAllocator, FrameDeallocator, PageSize, Phy
 
 use core::option::Option;
 
-use crate::boot::arch::memory_map::{MemoryMap, MemoryMapEntry, MemoryRegionType};
+use crate::boot::arch::memory_map::{BootstrapMemoryMap, MemoryMapEntry, MemoryRegionType};
 
 pub struct BasicFrameAllocator<'ctx> {
-    memory_map: &'ctx mut MemoryMap,
+    memory_map: &'ctx mut BootstrapMemoryMap,
 }
 
 impl<'ctx> BasicFrameAllocator<'ctx> {
-    pub fn new(memory_map: &'ctx mut MemoryMap) -> Self {
+    pub fn new(memory_map: &'ctx mut BootstrapMemoryMap) -> Self {
         Self { memory_map }
     }
 

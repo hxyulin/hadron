@@ -13,13 +13,15 @@ use hadron_test::test_entry;
 
 test_entry!(kernel_entry);
 
+/// # History
+/// This test was added because the kernel panicked when running on real hardware with 48 GB of RAM.
 #[test_case]
 #[cfg(any(kernel_bootloader = "limine", feature = "never"))]
 fn test_memory_map() {
-    use hadron_kernel::boot::arch::memory_map::MemoryMap;
+    use hadron_kernel::boot::arch::memory_map::BootstrapMemoryMap;
     use limine::memory_map::{MemoryMapEntry, MemoryMapEntryType};
     // We make sure that it doesn't crash if we have too many entries
-    const BUF_SIZE: usize = MemoryMap::SIZE as usize + 8;
+    const BUF_SIZE: usize = BootstrapMemoryMap::SIZE as usize + 8;
     let mut buffer = [MemoryMapEntry {
         base: 0,
         length: 0,
@@ -32,6 +34,6 @@ fn test_memory_map() {
 
     let response =
         limine::response::MemoryMapResponse::internal_new(0, BUF_SIZE as u64, NonNull::new(&raw mut ptrs[0]).unwrap());
-    let mut memory_map = MemoryMap::default();
+    let mut memory_map = BootstrapMemoryMap::default();
     core::hint::black_box(memory_map.parse_from_limine(&response));
 }

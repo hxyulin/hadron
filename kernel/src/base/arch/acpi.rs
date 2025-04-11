@@ -1,10 +1,11 @@
 use alloc::{collections::btree_map::BTreeMap, sync::Arc};
 use spin::Mutex;
 use x86_64::{
-    structures::paging::{frame::PhysFrameRangeInclusive, page::PageRangeInclusive, Page, PageTableFlags, PhysFrame}, PhysAddr, VirtAddr,
+    PhysAddr, VirtAddr,
+    structures::paging::{Page, PageTableFlags, PhysFrame, frame::PhysFrameRangeInclusive, page::PageRangeInclusive},
 };
 
-use crate::base::mem::{map_page, unmap_page, mappings};
+use crate::base::mem::{map_page, unmap_page};
 use core::ptr::NonNull;
 
 /// Initialize the ACPI subsystem
@@ -14,7 +15,8 @@ use core::ptr::NonNull;
 /// - Setting up the RSDP
 pub fn init(rsdp: PhysAddr) {
     let mapper = AcpiMapper::new();
-    let tables = unsafe { acpi::AcpiTables::from_rsdp(mapper, rsdp.as_u64() as usize) }.expect("Failed to parse ACPI tables");
+    let tables =
+        unsafe { acpi::AcpiTables::from_rsdp(mapper, rsdp.as_u64() as usize) }.expect("Failed to parse ACPI tables");
     let platform_info = tables.platform_info().expect("Failed to parse platform info");
     parse_platform_info(&platform_info);
 }
@@ -23,7 +25,7 @@ pub fn init(rsdp: PhysAddr) {
 fn parse_platform_info(platform_info: &acpi::PlatformInfo<alloc::alloc::Global>) {
     match platform_info.power_profile {
         acpi::PowerProfile::Unspecified => log::warn!("ACPI: Unspecified power profile"),
-        _ => {},
+        _ => {}
     }
     log::info!("ACPI: Platform info: {:?}", platform_info);
 }
@@ -31,7 +33,7 @@ fn parse_platform_info(platform_info: &acpi::PlatformInfo<alloc::alloc::Global>)
 /// A mapper to map ACPI frames to logical addresses
 #[derive(Debug, Clone)]
 pub struct AcpiMapperInner {
-    mapped_frames: BTreeMap<Page, usize>,
+    mapped_frames: BTreeMap<u64, usize>,
 }
 
 impl AcpiMapperInner {
@@ -42,27 +44,29 @@ impl AcpiMapperInner {
     }
 
     unsafe fn map_frame(&mut self, frame: PhysFrame) {
-        let page =
-            unsafe { Page::from_start_address_unchecked(mappings::ACPI_TABLES + frame.start_address().as_u64()) };
-        if let Some(count) = self.mapped_frames.get_mut(&page) {
+        let start_addr = frame.start_address().as_u64();
+        if let Some(count) = self.mapped_frames.get_mut(&start_addr) {
             *count += 1;
             return;
         }
-        self.mapped_frames.insert(page.clone(), 1);
+        self.mapped_frames.insert(start_addr, 1);
+        log::debug!("Mapping frame {:?}", frame);
         unsafe {
             map_page(
                 frame,
-                page.start_address(),
+                VirtAddr::new(start_addr),
                 PageTableFlags::PRESENT | PageTableFlags::NO_EXECUTE,
-            )
+            );
         };
     }
 
     unsafe fn unmap_page(&mut self, page: Page) {
-        let count = self.mapped_frames.get_mut(&page).expect("Frame not mapped");
+        let start_addr = page.start_address().as_u64();
+        let count = self.mapped_frames.get_mut(&start_addr).expect("Frame not mapped");
         *count -= 1;
         if *count == 0 {
-            self.mapped_frames.remove(&page);
+            log::debug!("Unmapping page {:?}", page);
+            self.mapped_frames.remove(&start_addr);
             unsafe { unmap_page(page.start_address()) };
         }
     }
@@ -98,7 +102,7 @@ impl acpi::AcpiHandler for AcpiMapper {
         unsafe {
             acpi::PhysicalMapping::new(
                 physical_address,
-                NonNull::new_unchecked((mappings::ACPI_TABLES + physical_address as u64).as_mut_ptr::<T>()),
+                NonNull::new_unchecked(physical_address as *mut T),
                 size,
                 size,
                 self.clone(),
