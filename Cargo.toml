@@ -17,7 +17,9 @@ edition = "2024"
 menuconfig = { path = "crates/menuconfig", default-features = false }
 limine = { path = "crates/limine", default-features = false }
 volatile = { path = "crates/volatile", default-features = false }
-hadron-test = { path = "crates/hadron-test", default-features = false }
 
 static_assertions = { version = "1.1.0", features = ["nightly"] }
 lazy_static = { version = "1.5.0", features = ["spin_no_std"] }
+log = "0.4.27"
+bitflags = "2.9.0"
+spin = "0.10.0"

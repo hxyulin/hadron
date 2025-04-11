@@ -130,6 +130,7 @@ fn populate_boot_info() {
     let kernel_addr = requests::EXECUTABLE_ADDRESS.get_response().unwrap();
     boot_info.kernel_start_phys = PhysAddr::new(kernel_addr.physical_address);
     boot_info.kernel_start_virt = VirtAddr::new(kernel_addr.virtual_address);
+    print!(boot_info, "Kernel loaded at {:?} -> {:?}\n", boot_info.kernel_start_phys, boot_info.kernel_start_virt);
     print!(boot_info, "Parsing memory map...\n");
     boot_info
         .memory_map
@@ -147,6 +148,7 @@ fn allocate_pages() -> ! {
 
     let start_phys = boot_info.kernel_start_phys;
     let kernel_size = get_kernel_size();
+    print!(boot_info, "Kernel size: {:#x} + {:#x} = {:#x}\n", kernel_size.0, kernel_size.1, kernel_size.0 + kernel_size.1);
     // Map text section with execute permissions
     for i in 0..kernel_size.0 as u64 / Size4KiB::SIZE {
         let offset = i * Size4KiB::SIZE;
@@ -293,8 +295,8 @@ fn limine_stage_2() -> ! {
         use crate::base::info::KERNEL_INFO;
         KERNEL_INFO = KernelInfo::Kernel(runtime_info)
     };
-    log::set_max_level(log::LevelFilter::Trace);
     log::set_logger(&LOGGER).unwrap();
+    log::set_max_level(log::LevelFilter::Trace);
 
     jump_to_kernel_main(KernelParams { rsdp });
 }
@@ -302,8 +304,7 @@ fn limine_stage_2() -> ! {
 fn init_heap() {
     let boot_info = unsafe { boot_info_mut() };
     print!(boot_info, "Setting up kernel heap...\n");
-    let mut allocator = crate::ALLOCATOR.lock();
-    unsafe { allocator.init(mappings::KERNEL_HEAP.as_mut_ptr(), boot_info.heap.1 as usize) };
+    unsafe { crate::ALLOCATOR.init_generic(mappings::KERNEL_HEAP.as_mut_ptr(), boot_info.heap.1 as usize) };
 }
 
 fn create_framebuffers() -> Vec<Mutex<Framebuffer>> {
@@ -315,7 +316,7 @@ fn create_framebuffers() -> Vec<Mutex<Framebuffer>> {
 fn jump_to_kernel_main(params: KernelParams) -> ! {
     // It is not considered not 'boot' anymore, since we are jumping to the kernel afterwards
     crate::boot::IS_BOOT.store(false, core::sync::atomic::Ordering::Relaxed);
-    unsafe extern "C" {
+    unsafe extern "Rust" {
         fn kernel_main(params: KernelParams) -> !;
     }
     unsafe { kernel_main(params) };

@@ -73,11 +73,13 @@ impl Bitmap {
 
     pub fn find_free(&self) -> Option<usize> {
         for (idx, byte) in self.0.iter().enumerate() {
-            if *byte != 0 {
-                for bit in 0..64 {
-                    if (byte & (1 << bit)) == 0 {
-                        return Some(idx * 64 + bit);
-                    }
+            // We don't need to check bit-by-bit, because the bitmap is a full 64-bit word
+            if *byte == u64::MAX {
+                continue;
+            }
+            for bit in 0..64 {
+                if (byte & (1 << bit)) == 0 {
+                    return Some(idx * 64 + bit);
                 }
             }
         }

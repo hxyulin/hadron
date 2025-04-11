@@ -18,6 +18,9 @@ never = []
 limine.workspace = true
 volatile.workspace = true
 lazy_static.workspace = true
+log.workspace = true
+bitflags.workspace = true
+spin.workspace = true
 
 noto-sans-mono-bitmap = { version = "0.3.1", default-features = false, features = [
     "regular",
@@ -27,11 +30,10 @@ noto-sans-mono-bitmap = { version = "0.3.1", default-features = false, features 
 ] }
 x86_64 = "0.15.2"
 uart_16550 = { version = "0.3.2", features = ["nightly"] }
-spin = "0.10.0"
 linked_list_allocator = "0.10.5"
-log = "0.4.27"
 acpi = "5.2.0"
-bitflags = "2.9.0"
+backtrace = { version = "0.3.74", default-features = false }
+chrono = { version = "0.4.40", default-features = false, features = ["alloc"] }
 
 [build-dependencies]
 menuconfig.workspace = true

@@ -1,4 +1,4 @@
-use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame, PageFaultErrorCode};
+use x86_64::{registers::control::Cr2, structures::idt::{InterruptDescriptorTable, InterruptStackFrame, PageFaultErrorCode}};
 
 lazy_static::lazy_static! {
     static ref IDT: InterruptDescriptorTable = {
@@ -15,14 +15,20 @@ pub fn init() {
 }
 
 extern "x86-interrupt" fn breakpoint_handler(stack_frame: InterruptStackFrame) {
-    panic!("Breakpoint hit at {:#x}", stack_frame.instruction_pointer);
+    log::info!("Breakpoint hit at {:#x}", stack_frame.instruction_pointer);
+    log::info!("Stack trace: {:#x?}", stack_frame);
 }
 
 extern "x86-interrupt" fn page_fault_handler(stack_frame: InterruptStackFrame, error_code: PageFaultErrorCode) {
-    panic!(
-        "Page fault at {:#x}, error code: {:#x}",
-        stack_frame.instruction_pointer, error_code,
+    // Page fault address is stored in CR2
+    let fault_addr = Cr2::read().unwrap();
+    log::error!(
+        "Page fault at {:?}, error code: {:?}",
+        fault_addr,
+        error_code
     );
+    log::error!("Stack trace: {:#x?}", stack_frame);
+    panic!("Page fault");
 }
 
 extern "x86-interrupt" fn double_fault_handler(stack_frame: InterruptStackFrame, error_code: u64) -> ! {

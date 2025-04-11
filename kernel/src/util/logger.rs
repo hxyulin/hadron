@@ -42,7 +42,7 @@ impl Log for KernelLogger {
                 let mut device = device.lock();
                 let mut writer = TtyDeviceWriter { tty: &mut *device };
                 writer
-                    .write_fmt(format_args!("{} - {}\n", record.level(), record.args()))
+                    .write_fmt(format_args!("[{:.5}] {}: {}\n", 0.0, record.level(), record.args()))
                     .unwrap();
             }
         }

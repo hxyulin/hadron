@@ -1,17 +1,19 @@
 //! Hadron Kernel
 #![no_std]
 #![no_main]
-#![feature(custom_test_frameworks, abi_x86_interrupt)]
+#![feature(custom_test_frameworks, abi_x86_interrupt, allocator_api)]
 #![test_runner(crate::tests::test_runner)]
 #![reexport_test_harness_main = "test_main"]
-#![allow(unexpected_cfgs)]
+#![allow(unexpected_cfgs, dead_code)]
 
+use base::{mem::alloc::KernelAllocator, arch::acpi};
 use linked_list_allocator::LockedHeap;
 
 pub mod base;
 /// Boot shouldn't be accessible from the main kernel logic
 pub(crate) mod boot;
 pub mod devices;
+pub mod drivers;
 pub mod util;
 
 #[cfg(any(kernel_bootloader = "limine", feature = "never"))]
@@ -24,9 +26,8 @@ compile_error!("No bootloader selected");
 extern crate alloc;
 
 #[global_allocator]
-static ALLOCATOR: LockedHeap = LockedHeap::empty();
+static ALLOCATOR: KernelAllocator = KernelAllocator::empty();
 
-#[repr(C)]
 #[derive(Debug, Clone, Copy)]
 pub struct KernelParams {
     pub rsdp: PhysAddr,
@@ -42,9 +43,8 @@ pub struct KernelParams {
 /// The heap is also setup, but the size can be non standard.
 /// The logger should be set up, and the TTY devices should be added to the logger.
 #[unsafe(no_mangle)]
-extern "C" fn kernel_main(params: KernelParams) -> ! {
-    log::info!("Hello from kernel!");
-
+extern "Rust" fn kernel_main(params: KernelParams) -> ! {
+    acpi::init(params.rsdp);
     panic!("Reached end of kernel");
 }
 
@@ -54,7 +54,10 @@ pub fn kernel_panic(info: &core::panic::PanicInfo) -> ! {
         boot::boot_panic(info);
     } else {
         log::error!("KERNEL PANIC: {}", info);
-        loop {}
+        // TODO: Backtrace
+        loop {
+            x86_64::instructions::hlt();
+        }
     }
 }
 

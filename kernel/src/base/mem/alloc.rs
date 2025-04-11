@@ -1,6 +1,6 @@
 use core::{alloc::GlobalAlloc, ptr::NonNull};
 
-use alloc::vec::Vec;
+use alloc::{collections::btree_map::BTreeMap, vec::Vec};
 use spin::{Mutex, RwLock};
 use x86_64::{
     VirtAddr,
@@ -9,11 +9,58 @@ use x86_64::{
 
 use crate::base::mem::mappings;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct ZoneId(usize);
+
 /// The kernel allocator.
 /// This is a simple allocator that allocates memory from the kernel's memory map.
 pub struct KernelAllocator {
     generic: Mutex<GenericAllocator>,
+    /// The zone allocators
+    ///
+    /// This is a list of zone allocators.
+    /// This list is designed to stay relatively constant in size,
+    /// but allowing for the possibility of adding more zone allocators.
+    /// Removal of zone allocators is not supported.
     zones: RwLock<Vec<ZoneAllocator>>,
+    zone_indices: RwLock<BTreeMap<&'static str, ZoneId>>,
+}
+
+impl KernelAllocator {
+    pub const fn empty() -> Self {
+        Self {
+            generic: Mutex::new(GenericAllocator::empty()),
+            zones: RwLock::new(Vec::new()),
+            zone_indices: RwLock::new(BTreeMap::new()),
+        }
+    }
+
+    /// Initializes the generic allocator with the given heap.
+    ///
+    /// # Safety
+    /// This function is unsafe because it can cause UB if the heap is not valid, or aclled more than once.
+    pub unsafe fn init_generic(&self, heap_start: *mut u8, heap_end: usize) {
+        let mut generic = self.generic.lock();
+        unsafe { generic.init(heap_start, heap_end) };
+    }
+
+    /// Creates a zone allocator.
+    ///
+    /// # Arguments
+    /// - `ident`: The identifier of the zone allocator.
+    /// - `initial_size`: The initial size of the zone allocator.
+    /// - `alloc_size`: The allocation size of the zone allocator.
+    pub fn create_zone(&self, ident: &'static str, initial_size: usize, alloc_size: usize) -> ZoneId {
+        todo!()
+    }
+
+    pub fn get_zone_id(&self, ident: &str) -> Option<ZoneId> {
+        self.zone_indices.read().get(ident).copied()
+    }
+
+    pub fn get_zone_info(&self, id: ZoneId) -> Option<ZoneInfo> {
+        self.zones.read().get(id.0).map(ZoneAllocator::info)
+    }
 }
 
 pub struct GenericAllocator {
@@ -23,6 +70,20 @@ pub struct GenericAllocator {
 
 impl GenericAllocator {
     const EXPANSION_FACTOR: usize = 2;
+
+    pub const fn empty() -> Self {
+        Self {
+            alloc: linked_list_allocator::Heap::empty(),
+        }
+    }
+
+    /// Initializes the allocator with the given heap.
+    ///
+    /// # Safety
+    /// This function is unsafe because it can cause UB if the heap is not valid, or aclled more than once.
+    pub unsafe fn init(&mut self, heap_start: *mut u8, heap_end: usize) {
+        unsafe { self.alloc.init(heap_start, heap_end) };
+    }
 
     unsafe fn alloc(&mut self, layout: core::alloc::Layout) -> *mut u8 {
         match self.alloc.allocate_first_fit(layout) {
@@ -63,16 +124,35 @@ impl GenericAllocator {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct ZoneInfo {
+    start: VirtAddr,
+    length: usize,
+    alloc_size: usize,
+}
+
 /// A zone allocator.
 /// This is a simple allocator that allocates memory of a fixed size
 pub struct ZoneAllocator {
-    start: usize,
+    start: VirtAddr,
     length: usize,
     alloc_size: usize,
     bitmap: Mutex<Vec<u64>>,
 }
 
 impl ZoneAllocator {
+    pub fn info(&self) -> ZoneInfo {
+        ZoneInfo {
+            start: self.start,
+            length: self.length,
+            alloc_size: self.alloc_size,
+        }
+    }
+
+    pub fn alloc_size(&self) -> usize {
+        self.alloc_size
+    }
+
     /// Allocate a new block in the zone.
     /// No arguments are needed because the zone allocator is a fixed size, and fixed alignment.
     unsafe fn alloc(&mut self) -> *mut u8 {
@@ -93,4 +173,14 @@ unsafe impl GlobalAlloc for KernelAllocator {
     unsafe fn dealloc(&self, ptr: *mut u8, layout: core::alloc::Layout) {
         unsafe { self.generic.lock().dealloc(ptr, layout) }
     }
+}
+
+/// Allocates a fixed size array using a zone allocator.
+pub fn z_alloc(id: ZoneId) -> *mut u8 {
+    todo!()
+}
+
+/// Deallocates a fixed size array using a zone allocator.
+pub fn z_dealloc(id: ZoneId, ptr: *mut u8) {
+    todo!()
 }
