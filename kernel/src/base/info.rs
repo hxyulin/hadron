@@ -10,9 +10,23 @@ use super::mem::{frame_allocator::KernelFrameAllocator, page_table::KernelPageTa
 
 #[derive(Debug)]
 pub struct RuntimeInfo {
-    pub frame_allocator: Mutex<KernelFrameAllocator>,
-    pub page_table: Mutex<KernelPageTable>,
+    pub(super) frame_allocator: Mutex<KernelFrameAllocator>,
+    pub(super) page_table: Mutex<KernelPageTable>,
     pub framebuffers: Vec<Mutex<Framebuffer>>,
+}
+
+impl RuntimeInfo {
+    pub fn new(
+        frame_allocator: Mutex<KernelFrameAllocator>,
+        page_table: Mutex<KernelPageTable>,
+        framebuffers: Vec<Mutex<Framebuffer>>,
+    ) -> Self {
+        Self {
+            frame_allocator,
+            page_table,
+            framebuffers,
+        }
+    }
 }
 
 #[allow(clippy::large_enum_variant)]

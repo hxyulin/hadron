@@ -1,3 +1,5 @@
+use core::fmt::Arguments;
+
 use alloc::vec::Vec;
 use spin::Mutex;
 use x86_64::{
@@ -19,11 +21,27 @@ use crate::{
     },
     boot::{
         arch::x86_64::{frame_allocator::BasicFrameAllocator, page_table::BootstrapPageTable},
-        drivers::serial,
+        drivers::{framebuffer::FramebufferWriter, serial::SerialWriter},
         info::{boot_info, boot_info_mut},
     },
-    devices::framebuffer::Framebuffer,
+    devices::framebuffer::{Framebuffer, FramebufferInfo, PixelFormat},
 };
+
+fn write_str(serial: &mut SerialWriter, fb: Option<&mut FramebufferWriter>, str: &str) {
+    use core::fmt::Write;
+    serial.write_str(str);
+    if let Some(framebuffer) = fb {
+        framebuffer.write_str(str);
+    }
+}
+
+fn write_fmt(serial: &mut SerialWriter, fb: Option<&mut FramebufferWriter>, args: Arguments) {
+    use core::fmt::Write;
+    serial.write_fmt(args);
+    if let Some(framebuffer) = fb {
+        framebuffer.write_fmt(args);
+    }
+}
 
 pub fn limine_entry() -> ! {
     // TODO: We need to parse the framebuffer here as well
@@ -39,22 +57,39 @@ pub fn limine_entry() -> ! {
 /// - Initializing the GDT
 /// - Initializing the IDT
 fn init_core() {
+    let boot_info = unsafe { boot_info_mut() };
     // We initialize the seiral port so it is available for printing
-    unsafe { serial::init() };
+    boot_info.serial.init();
     if !requests::BASE_REVISION.is_supported() {
-        serial::write_fmt(format_args!(
-            "Limine Base Revision {} is not supported\n",
-            requests::BASE_REVISION.revision()
-        ));
+        write_fmt(
+            &mut boot_info.serial,
+            boot_info.framebuffer.as_mut(),
+            format_args!(
+                "Limine Base Revision {} is not supported\n",
+                requests::BASE_REVISION.revision()
+            ),
+        );
         panic!();
     }
 
     let response = requests::BOOTLOADER_INFO.get_response().unwrap();
-    serial::write_fmt(format_args!("Booted from {} {}\n", response.name(), response.version()));
+    write_fmt(
+        &mut boot_info.serial,
+        boot_info.framebuffer.as_mut(),
+        format_args!("Booted from {} {}\n", response.name(), response.version()),
+    );
 
-    serial::write_str("Initializing GDT...\n");
+    write_str(
+        &mut boot_info.serial,
+        boot_info.framebuffer.as_mut(),
+        "Initializing GDT...\n",
+    );
     crate::base::arch::gdt::init();
-    serial::write_str("Initializing IDT...\n");
+    write_str(
+        &mut boot_info.serial,
+        boot_info.framebuffer.as_mut(),
+        "Initializing IDT...\n",
+    );
     crate::base::arch::idt::init();
 }
 
@@ -72,7 +107,28 @@ fn populate_boot_info() {
     let kernel_addr = requests::EXECUTABLE_ADDRESS.get_response().unwrap();
     boot_info.kernel_start_phys = PhysAddr::new(kernel_addr.physical_address);
     boot_info.kernel_start_virt = VirtAddr::new(kernel_addr.virtual_address);
-    serial::write_str("Parsing memory map...\n");
+    let fb = requests::FRAMEBUFFER
+        .get_response()
+        .unwrap()
+        .framebuffers()
+        .next()
+        .unwrap();
+    let fb_info = FramebufferInfo {
+        width: fb.width() as u32,
+        height: fb.height() as u32,
+        pixel_format: PixelFormat::RGB,
+        stride: fb.pitch() as u32,
+        bpp: fb.bpp() as u32 / 8,
+    };
+    let fb =
+        unsafe { core::slice::from_raw_parts_mut(fb.address() as *mut u8, fb.pitch() as usize * fb.height() as usize) };
+    boot_info.framebuffer = Some(FramebufferWriter::new(Framebuffer::new(fb_info, fb)));
+
+    write_str(
+        &mut boot_info.serial,
+        boot_info.framebuffer.as_mut(),
+        "Parsing memory map...\n",
+    );
     boot_info
         .memory_map
         .parse_from_limine(requests::MEMORY_MAP.get_response().unwrap());
@@ -86,7 +142,6 @@ fn allocate_pages() -> ! {
     let boot_info = unsafe { boot_info_mut() };
     let mut frame_allocator = BasicFrameAllocator::new(&mut boot_info.memory_map);
     let mut page_table = BootstrapPageTable::new(boot_info.hhdm_offset, &mut frame_allocator);
-    serial::write_str("Allocating kernel pages...\n");
 
     let start_phys = boot_info.kernel_start_phys;
     let kernel_size = get_kernel_size();
@@ -137,12 +192,32 @@ fn allocate_pages() -> ! {
     }
     boot_info.heap = (mappings::KERNEL_HEAP, HEAP_SIZE);
 
+    // Map framebuffer
+    if let Some(framebuffer) = boot_info.framebuffer.as_ref() {
+        let fb_virt = VirtAddr::new(framebuffer.fb_addr() as u64);
+        let fb_phys = PhysAddr::new(fb_virt.as_u64() - boot_info.hhdm_offset);
+        let fb_pages = framebuffer.fb_size().div_ceil(Size4KiB::SIZE as usize);
+        for i in 0..fb_pages {
+            let offset = i as u64 * Size4KiB::SIZE;
+            page_table.map(
+                fb_virt + offset,
+                PhysFrame::from_start_address(fb_phys + offset).unwrap(),
+                PageTableFlags::PRESENT
+                    | PageTableFlags::WRITABLE
+                    | PageTableFlags::NO_EXECUTE
+                    | PageTableFlags::NO_CACHE,
+                &mut frame_allocator,
+            );
+        }
+    }
+
     let page_table_ptr = page_table.phys_addr().as_u64();
 
-    serial::write_fmt(format_args!(
-        "Switching to new page table... (PML4: {:#x})\n",
-        page_table_ptr
-    ));
+    write_fmt(
+        &mut boot_info.serial,
+        boot_info.framebuffer.as_mut(),
+        format_args!("Switching to new page table... (PML4: {:#x})\n", page_table_ptr),
+    );
 
     // Setup the page tables, switch to the new stack, and push a null pointer to the stack
     unsafe {
@@ -162,26 +237,39 @@ fn allocate_pages() -> ! {
 fn limine_stage_2() -> ! {
     init_heap();
 
-    serial::write_str("Constructing frame allocator...\n");
-    let memory_map = MemoryMap::from_bootstrap(&boot_info().memory_map);
+    let boot_info = unsafe { boot_info_mut() };
+    write_str(
+        &mut boot_info.serial,
+        boot_info.framebuffer.as_mut(),
+        "Constructing frame allocator...\n",
+    );
+    let memory_map = MemoryMap::from_bootstrap(&boot_info.memory_map);
     let mut frame_allocator = KernelFrameAllocator::new(memory_map);
-    serial::write_str("Constructing page table...\n");
+    write_str(
+        &mut boot_info.serial,
+        boot_info.framebuffer.as_mut(),
+        "Constructing page table...\n",
+    );
     let page_table = KernelPageTable::new();
     let framebuffers = create_framebuffers();
 
-    let rsdp = boot_info().rsdp_addr;
+    let rsdp = boot_info.rsdp_addr;
 
     // PERF: Either remove this or make it better performing (inside `free_special_region`)
     let total_pages = frame_allocator.total_pages();
     frame_allocator.free_special_region(MemoryRegionTag::BootloaderReclaimable);
     let new_total_pages = frame_allocator.total_pages();
-    serial::write_fmt(format_args!("Reclaimed {} pages\n", new_total_pages - total_pages));
+    write_fmt(
+        &mut boot_info.serial,
+        boot_info.framebuffer.as_mut(),
+        format_args!("Reclaimed {} pages\n", new_total_pages - total_pages),
+    );
 
-    let runtime_info = KernelInfo::Kernel(RuntimeInfo {
-        frame_allocator: Mutex::new(frame_allocator),
-        page_table: Mutex::new(page_table),
+    let runtime_info = KernelInfo::Kernel(RuntimeInfo::new(
+        Mutex::new(frame_allocator),
+        Mutex::new(page_table),
         framebuffers,
-    });
+    ));
     unsafe {
         use crate::base::info::KERNEL_INFO;
         KERNEL_INFO = runtime_info
@@ -191,13 +279,23 @@ fn limine_stage_2() -> ! {
 }
 
 fn init_heap() {
-    serial::write_str("Setting up kernel heap...\n");
+    let boot_info = unsafe { boot_info_mut() };
+    write_str(
+        &mut boot_info.serial,
+        boot_info.framebuffer.as_mut(),
+        "Setting up kernel heap...\n",
+    );
     let mut allocator = crate::ALLOCATOR.lock();
-    unsafe { allocator.init(mappings::KERNEL_HEAP.as_mut_ptr(), boot_info().heap.1 as usize) };
+    unsafe { allocator.init(mappings::KERNEL_HEAP.as_mut_ptr(), boot_info.heap.1 as usize) };
 }
 
 fn create_framebuffers() -> Vec<Mutex<Framebuffer>> {
-    serial::write_str("Creating framebuffers...\n");
+    let boot_info = unsafe { boot_info_mut() };
+    write_str(
+        &mut boot_info.serial,
+        boot_info.framebuffer.as_mut(),
+        "Creating framebuffers...\n",
+    );
     Vec::new()
 }
 
@@ -205,10 +303,12 @@ fn jump_to_kernel_main(params: KernelParams) -> ! {
     unsafe extern "C" {
         fn kernel_main(params: KernelParams) -> !;
     }
-    serial::write_fmt(format_args!(
-        "Jumping to kernel_main (at {:#x})\n",
-        kernel_main as usize
-    ));
+    /*
+        serial::write_fmt(format_args!(
+            "Jumping to kernel_main (at {:#x})\n",
+            kernel_main as usize
+        ));
+    */
     unsafe { kernel_main(params) };
 }
 

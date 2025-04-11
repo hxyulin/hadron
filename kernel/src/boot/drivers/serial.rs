@@ -33,22 +33,3 @@ impl Write for SerialWriter {
     }
 }
 
-/// Initializes the serial port.
-///
-/// # Safety
-///
-/// This function is unsafe because it can only be called once.
-pub unsafe fn init() {
-    SERIAL.lock().init();
-}
-
-/// A global serial port writer, using the COM1 port.
-static SERIAL: Mutex<SerialWriter> = Mutex::new(SerialWriter::new(0x3F8));
-
-pub fn write_str(s: &str) {
-    SERIAL.lock().write_str(s).unwrap();
-}
-
-pub fn write_fmt(args: core::fmt::Arguments<'_>) {
-    SERIAL.lock().write_fmt(args).unwrap();
-}

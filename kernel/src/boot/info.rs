@@ -1,9 +1,15 @@
 use x86_64::{PhysAddr, VirtAddr};
 
-use super::arch::memory_map::MemoryMap;
+use super::{
+    arch::memory_map::MemoryMap,
+    drivers::{framebuffer::FramebufferWriter, serial::SerialWriter},
+};
 use crate::base::info::{KERNEL_INFO, KernelInfo};
 
 pub struct BootInfo {
+    pub serial: SerialWriter,
+    pub framebuffer: Option<FramebufferWriter>,
+
     pub hhdm_offset: u64,
     pub kernel_start_phys: PhysAddr,
     pub kernel_start_virt: VirtAddr,
@@ -15,6 +21,9 @@ pub struct BootInfo {
 impl BootInfo {
     pub const fn default() -> Self {
         Self {
+            serial: SerialWriter::new(0x3F8),
+            framebuffer: None,
+
             hhdm_offset: 0,
             kernel_start_phys: PhysAddr::new(0),
             kernel_start_virt: VirtAddr::new(0),
