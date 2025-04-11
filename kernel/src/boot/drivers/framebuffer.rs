@@ -20,6 +20,10 @@ impl FramebufferWriter {
         self.fb.buffer.as_ptr() as usize
     }
 
+    /// Sets the framebuffer address.
+    ///
+    /// # Safety
+    /// This function is unsafe because it can cause UB if the address is not valid.
     pub unsafe fn set_fb_addr(&mut self, addr: usize) {
         let slice = unsafe { core::slice::from_raw_parts_mut(addr as *mut u8, self.fb.buffer.len()) };
         self.fb.buffer = VolatileSlice::from_slice_mut(slice);
@@ -50,7 +54,10 @@ pub struct FramebufferWriterInner {
 
 impl FramebufferWriterInner {
     pub fn new() -> Self {
-        Self { x_pos: 0, y_pos: 0 }
+        Self {
+            x_pos: BORDER_PADDING,
+            y_pos: BORDER_PADDING,
+        }
     }
 
     pub fn x_pos(&self) -> usize {

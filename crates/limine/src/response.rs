@@ -8,7 +8,7 @@ use core::{
 
 use crate::{
     file::{File, FileIter},
-    framebuffer::{FramebufferIter, RawFramebuffer},
+    framebuffer::{FramebufferList, RawFramebuffer},
     memory_map::{MemoryMapEntry, MemoryMapIter},
 };
 
@@ -112,19 +112,19 @@ pub struct FramebufferResponse {
 
 impl FramebufferResponse {
     /// Returns the framebuffer pointers.
-    pub(crate) fn framebuffer_ptrs(&self) -> &[NonNull<RawFramebuffer>] {
+    fn framebuffer_ptrs(&self) -> &[NonNull<RawFramebuffer>] {
         // SAFETY: The framebuffers pointer is valid because it is a pointer to an array of pointers.
         unsafe { core::slice::from_raw_parts(self.framebuffers.as_ptr(), self.framebuffer_count as usize) }
     }
 
     /// Returns the number of framebuffers.
-    pub fn count(&self) -> usize {
+    pub fn len(&self) -> usize {
         self.framebuffer_count as usize
     }
 
     /// Returns an iterator over the framebuffers.
-    pub fn framebuffers(&self) -> FramebufferIter {
-        FramebufferIter::new(self.revision, self.framebuffer_ptrs())
+    pub fn framebuffers(&self) -> FramebufferList {
+        FramebufferList::new(self.revision, self.framebuffer_ptrs())
     }
 }
 

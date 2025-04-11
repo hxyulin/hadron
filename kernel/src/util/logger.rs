@@ -1,4 +1,4 @@
-use alloc::vec::Vec;
+use alloc::{format, vec::Vec};
 use core::fmt::Write;
 use log::Log;
 use spin::RwLock;
@@ -7,6 +7,8 @@ use crate::{
     base::info::kernel_info,
     devices::{DeviceId, tty::TtyDevice},
 };
+
+use super::timer::time_since_boot;
 
 /// The main logger for the kernel.
 /// In initial stages, this prints directly to the serial port devices or framebuffers.
@@ -42,7 +44,12 @@ impl Log for KernelLogger {
                 let mut device = device.lock();
                 let mut writer = TtyDeviceWriter { tty: &mut *device };
                 writer
-                    .write_fmt(format_args!("[{:.5}] {}: {}\n", 0.0, record.level(), record.args()))
+                    .write_fmt(format_args!(
+                        "{:>12} {:<5}: {}\n",
+                        format!("[{:.5}]", time_since_boot().as_secs_f32()),
+                        record.level(),
+                        record.args()
+                    ))
                     .unwrap();
             }
         }

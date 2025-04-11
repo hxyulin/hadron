@@ -1,16 +1,25 @@
 //! The base info module.
 //! This contains the base KernelInfo struct, which contains information about the kernel.
 
-use spin::Mutex;
+use alloc::boxed::Box;
+use conquer_once::spin::OnceCell;
+use spin::{Mutex, RwLock};
 
-use crate::{boot::info::BootInfo, devices::DeviceManager};
+use crate::{boot::info::BootInfo, devices::DeviceManager, util::timer::Timer};
 
-use super::mem::{frame_allocator::KernelFrameAllocator, page_table::KernelPageTable};
+use super::{
+    arch::apic::Apics,
+    io::mmio::KernelMmio,
+    mem::{frame_allocator::KernelFrameAllocator, page_table::KernelPageTable},
+};
 
 pub struct RuntimeInfo {
     pub(super) frame_allocator: Mutex<KernelFrameAllocator>,
     pub(super) page_table: Mutex<KernelPageTable>,
     pub devices: DeviceManager,
+    pub mmio: Mutex<KernelMmio>,
+    pub pics: OnceCell<Mutex<Apics>>,
+    pub timer: OnceCell<RwLock<Box<dyn Timer>>>,
 }
 
 impl RuntimeInfo {
@@ -19,6 +28,9 @@ impl RuntimeInfo {
             frame_allocator,
             page_table,
             devices: DeviceManager::new(),
+            mmio: Mutex::new(KernelMmio::new()),
+            pics: OnceCell::uninit(),
+            timer: OnceCell::uninit(),
         }
     }
 }

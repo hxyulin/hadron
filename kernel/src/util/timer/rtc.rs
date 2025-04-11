@@ -27,7 +27,7 @@ fn update_in_progress() -> bool {
     rtc_read(0x0A) & 0x80 != 0
 }
 
-pub fn read_time() -> UtcTime {
+pub(super) fn read_time() -> UtcTime {
     while update_in_progress() {}
 
     let mut seconds = rtc_read(0x00);

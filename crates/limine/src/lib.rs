@@ -6,6 +6,7 @@
 
 // This crate is designed to be used in a bare-metal environment.
 #![no_std]
+#![allow(clippy::new_without_default)]
 
 pub mod file;
 pub mod framebuffer;

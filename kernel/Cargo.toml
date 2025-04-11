@@ -35,6 +35,8 @@ acpi = "5.2.0"
 backtrace = { version = "0.3.74", default-features = false }
 chrono = { version = "0.4.40", default-features = false, features = ["alloc"] }
 bit_field = "0.10.2"
+conquer-once = { version = "0.4.0", default-features = false }
+raw-cpuid = "11.5.0"
 
 [build-dependencies]
 menuconfig.workspace = true

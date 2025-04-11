@@ -171,34 +171,48 @@ pub struct VideoMode {
 }
 
 /// An iterator over the framebuffers.
-pub struct FramebufferIter<'a> {
+pub struct FramebufferList<'a> {
     revision: u64,
     framebuffers: &'a [NonNull<RawFramebuffer>],
-    index: usize,
 }
 
-impl<'a> FramebufferIter<'a> {
+impl<'a> FramebufferList<'a> {
     /// Creates a new `FramebufferIter` from a slice of framebuffer pointers.
     pub(crate) fn new(revision: u64, framebuffers: &'a [NonNull<RawFramebuffer>]) -> Self {
-        Self {
-            revision,
-            framebuffers,
-            index: 0,
-        }
+        Self { revision, framebuffers }
     }
+
+    pub fn len(&self) -> usize {
+        self.framebuffers.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.framebuffers.is_empty()
+    }
+
+    pub fn first(&self) -> Option<Framebuffer<'a>> {
+        self.framebuffers
+            .first()
+            .map(|framebuffer| Framebuffer::new(self.revision, unsafe { framebuffer.as_ref() }))
+    }
+}
+
+pub struct FramebufferIter<'a> {
+    fb_list: FramebufferList<'a>,
+    index: usize,
 }
 
 impl<'a> Iterator for FramebufferIter<'a> {
     type Item = Framebuffer<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.index >= self.framebuffers.as_ref().len() {
+        if self.index >= self.fb_list.len() {
             return None;
         }
         self.index += 1;
         // SAFETY: The framebuffer pointer is valid because it is a pointer to a framebuffer.
-        Some(Framebuffer::new(self.revision, unsafe {
-            self.framebuffers[self.index - 1].as_ref()
+        Some(Framebuffer::new(self.fb_list.revision, unsafe {
+            self.fb_list.framebuffers[self.index - 1].as_ref()
         }))
     }
 }

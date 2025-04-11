@@ -30,7 +30,7 @@ impl From<&limine::memory_map::MemoryMapEntry> for MemoryMapEntry {
 impl BootstrapMemoryMap {
     pub fn parse_from_limine(&mut self, memory_map: &limine::response::MemoryMapResponse) {
         let entries = memory_map.entries();
-        let size = entries.len().min(Self::SIZE as usize);
+        let size = entries.len().min(Self::SIZE);
         self.size = size as u64;
         for (i, entry) in entries.enumerate() {
             if i >= size {

@@ -38,7 +38,6 @@ impl MemoryRegion {
 
     pub(super) fn allocate(&mut self) -> Option<usize> {
         let idx = self.bitmap.find_free()?;
-        log::debug!("Idx: {idx}");
         self.bitmap.set(idx, true);
         Some(idx)
     }

@@ -22,6 +22,11 @@ impl KernelPageTable {
         Self { table }
     }
 
+    /// Maps a page to a frame.
+    ///
+    /// # Safety
+    /// This function is unsafe because mapping the same physical frame to multiple virtual addresses
+    /// can cause UB.
     pub unsafe fn map(&mut self, page: Page, frame: PhysFrame, flags: PageTableFlags) {
         let mut frame_alloc = kernel_info().frame_allocator.lock();
         unsafe { self.table.map_to(page, frame, flags, frame_alloc.deref_mut()) }

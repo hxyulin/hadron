@@ -58,6 +58,10 @@ impl<'a> MemoryMapIter<'a> {
     pub fn len(&self) -> usize {
         self.memory_map.len()
     }
+
+    pub fn is_empty(&self) -> bool {
+        self.memory_map.is_empty()
+    }
 }
 
 impl<'a> Iterator for MemoryMapIter<'a> {

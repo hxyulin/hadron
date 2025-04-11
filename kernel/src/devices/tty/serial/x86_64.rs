@@ -26,16 +26,18 @@ impl TtyDevice for SerialDevice {
     }
 
     fn read(&mut self, buf: &mut [u8]) -> usize {
-        for i in 0..buf.len() {
-            buf[i] = self.port.receive();
+        let len = buf.len();
+        for byte in buf {
+            *byte = self.port.receive();
         }
-        buf.len()
+        len
     }
 
     fn write(&mut self, buf: &[u8]) -> usize {
-        for i in 0..buf.len() {
-            self.port.send_raw(buf[i]);
+        let len = buf.len();
+        for byte in buf {
+            self.port.send_raw(*byte);
         }
-        buf.len()
+        len
     }
 }

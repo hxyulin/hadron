@@ -4,8 +4,6 @@ use core::{panic::PanicInfo, sync::atomic::AtomicBool};
 
 static IS_BOOT: AtomicBool = AtomicBool::new(true);
 
-/// We use any here so that IDE services don't break, but the feature `never` is actually never used
-
 #[cfg(any(kernel_bootloader = "limine", feature = "never"))]
 pub mod limine;
 

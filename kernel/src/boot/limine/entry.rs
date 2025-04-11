@@ -1,6 +1,6 @@
 use core::fmt::Arguments;
 
-use alloc::{sync::Arc, vec::Vec};
+use alloc::sync::Arc;
 use spin::Mutex;
 use x86_64::{
     PhysAddr, VirtAddr,
@@ -81,21 +81,17 @@ fn init_core() {
     };
 
     if !requests::BASE_REVISION.is_supported() {
-        print!(
-            boot_info,
+        panic!(
             "Limine Base Revision {} is not supported\n",
             requests::BASE_REVISION.revision()
         );
-        panic!();
     }
 
     // We want the framebuffer as early as possible
-    let fb = requests::FRAMEBUFFER
-        .get_response()
-        .unwrap()
-        .framebuffers()
-        .next()
-        .unwrap();
+    let framebuffers = requests::FRAMEBUFFER.get_response().unwrap().framebuffers();
+    print!(boot_info, "[Boot] found {} framebuffers\n", framebuffers.len());
+
+    let fb = framebuffers.first().unwrap();
     let fb_info = FramebufferInfo {
         width: fb.width() as u32,
         height: fb.height() as u32,
@@ -108,11 +104,16 @@ fn init_core() {
     boot_info.framebuffer = Some(FramebufferWriter::new(Framebuffer::new(fb_info, fb)));
 
     let response = requests::BOOTLOADER_INFO.get_response().unwrap();
-    print!(boot_info, "Booted from {} {}\n", response.name(), response.version());
+    print!(
+        boot_info,
+        "[Boot] booted from {} {}\n",
+        response.name(),
+        response.version()
+    );
 
-    print!(boot_info, "Initializing GDT...\n");
+    print!(boot_info, "[Boot] initializing GDT...\n");
     crate::base::arch::gdt::init();
-    print!(boot_info, "Initializing IDT...\n");
+    print!(boot_info, "[Boot] initializing IDT...\n");
     crate::base::arch::idt::init();
 }
 
@@ -127,15 +128,11 @@ fn populate_boot_info() {
     let boot_info = unsafe { boot_info_mut() };
     let hhdm = requests::HHDM.get_response().unwrap();
     boot_info.hhdm_offset = hhdm.offset;
-    print!(boot_info, "HHDM offset: {:#x}\n", boot_info.hhdm_offset);
     let kernel_addr = requests::EXECUTABLE_ADDRESS.get_response().unwrap();
     boot_info.kernel_start_phys = PhysAddr::new(kernel_addr.physical_address);
     boot_info.kernel_start_virt = VirtAddr::new(kernel_addr.virtual_address);
-    print!(
-        boot_info,
-        "Kernel loaded at {:?} -> {:?}\n", boot_info.kernel_start_phys, boot_info.kernel_start_virt
-    );
-    print!(boot_info, "Parsing memory map...\n");
+    print!(boot_info, "[Boot] kernel loaded at {:#x}", boot_info.kernel_start_virt);
+    print!(boot_info, "[Boot] parsing memory map...\n");
     boot_info
         .memory_map
         .parse_from_limine(requests::MEMORY_MAP.get_response().unwrap());
@@ -154,7 +151,7 @@ fn allocate_pages() -> ! {
     let kernel_size = get_kernel_size();
     print!(
         boot_info,
-        "Kernel size: {:#x} + {:#x} = {:#x}\n",
+        "[Boot] kernel size: {:#x} + {:#x} = {:#x}\n",
         kernel_size.0,
         kernel_size.1,
         kernel_size.0 + kernel_size.1
@@ -164,7 +161,7 @@ fn allocate_pages() -> ! {
         let offset = i * Size4KiB::SIZE;
         page_table.map(
             mappings::KERNEL_TEXT + offset,
-            PhysFrame::from_start_address(start_phys + offset).unwrap().into(),
+            PhysFrame::from_start_address(start_phys + offset).unwrap(),
             PageTableFlags::PRESENT,
             &mut frame_allocator,
         );
@@ -175,7 +172,7 @@ fn allocate_pages() -> ! {
         let offset = i * Size4KiB::SIZE + kernel_size.0 as u64;
         page_table.map(
             mappings::KERNEL_TEXT + offset,
-            PhysFrame::from_start_address(start_phys + offset).unwrap().into(),
+            PhysFrame::from_start_address(start_phys + offset).unwrap(),
             PageTableFlags::PRESENT | PageTableFlags::WRITABLE | PageTableFlags::NO_EXECUTE,
             &mut frame_allocator,
         );
@@ -212,17 +209,6 @@ fn allocate_pages() -> ! {
         let fb_phys = PhysAddr::new(fb_virt.as_u64() - boot_info.hhdm_offset);
         let fb_pages = framebuffer.fb_size().div_ceil(Size4KiB::SIZE as usize);
 
-        write_fmt(
-            boot_info.serial.as_mut(),
-            Some(framebuffer),
-            format_args!(
-                "Framebuffer: (VirtAddr: {:#x}, PhysAddr: {:#x}, Size: {})\n",
-                fb_virt.as_u64(),
-                fb_phys.as_u64(),
-                fb_pages
-            ),
-        );
-
         for i in 0..fb_pages {
             let offset = i as u64 * Size4KiB::SIZE;
             page_table.map(
@@ -239,12 +225,6 @@ fn allocate_pages() -> ! {
     }
 
     let page_table_ptr = page_table.phys_addr().as_u64();
-
-    write_fmt(
-        boot_info.serial.as_mut(),
-        None, // We can't use it yet, since we set the virt addr to the new mapping
-        format_args!("Switching to new page table... (PML4: {:#x})\n", page_table_ptr),
-    );
 
     // Setup the page tables, switch to the new stack, and push a null pointer to the stack
     unsafe {
@@ -265,12 +245,11 @@ fn limine_stage_2() -> ! {
     init_heap();
 
     let boot_info = unsafe { boot_info_mut() };
-    print!(boot_info, "Constructing frame allocator...\n");
+    print!(boot_info, "[Boot] constructing frame allocator...\n");
     let memory_map = MemoryMap::from_bootstrap(&boot_info.memory_map);
     let mut frame_allocator = KernelFrameAllocator::new(memory_map);
-    print!(boot_info, "Constructing page tables...\n");
+    print!(boot_info, "[Boot] constructing page tables...\n");
     let page_table = KernelPageTable::new();
-    let framebuffers = create_framebuffers();
 
     let rsdp = boot_info.rsdp_addr;
 
@@ -280,7 +259,7 @@ fn limine_stage_2() -> ! {
     let new_total_pages = frame_allocator.total_pages();
     print!(
         boot_info,
-        "Reclaimed {} pages (total memory {})\n",
+        "[Boot] reclaimed {} pages (total memory {})\n",
         new_total_pages - total_pages,
         new_total_pages * Size4KiB::SIZE
     );
@@ -313,14 +292,8 @@ fn limine_stage_2() -> ! {
 
 fn init_heap() {
     let boot_info = unsafe { boot_info_mut() };
-    print!(boot_info, "Setting up kernel heap...\n");
+    print!(boot_info, "[Boot] setting up initial kernel heap...\n");
     unsafe { crate::ALLOCATOR.init_generic(mappings::KERNEL_HEAP.as_mut_ptr(), boot_info.heap.1 as usize) };
-}
-
-fn create_framebuffers() -> Vec<Mutex<Framebuffer>> {
-    let boot_info = unsafe { boot_info_mut() };
-    print!(boot_info, "Creating framebuffers...\n");
-    Vec::new()
 }
 
 fn jump_to_kernel_main(params: KernelParams) -> ! {

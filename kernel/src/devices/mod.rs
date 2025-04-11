@@ -28,11 +28,11 @@ impl DeviceManager {
     }
 
     pub fn get_tty_device(&self, id: DeviceId) -> Option<Arc<Mutex<dyn tty::TtyDevice>>> {
-        self.tty.devices.read().get(&id).map(|device| device.clone())
+        self.tty.devices.read().get(&id).cloned()
     }
 
     pub fn get_fb_device(&self, id: DeviceId) -> Option<Arc<Mutex<dyn fb::FbDevice>>> {
-        self.fb.devices.read().get(&id).map(|device| device.clone())
+        self.fb.devices.read().get(&id).cloned()
     }
 }
 

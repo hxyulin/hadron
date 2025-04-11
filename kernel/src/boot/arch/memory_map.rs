@@ -72,7 +72,7 @@ pub struct BootstrapMemoryMap {
 
 impl BootstrapMemoryMap {
     pub fn new(entries: &[MemoryMapEntry]) -> Self {
-        let size = entries.len().min(Self::SIZE as usize);
+        let size = entries.len().min(Self::SIZE);
         let mut memory_map = Self {
             size: size as u64,
             entries: [MemoryMapEntry::default(); Self::SIZE],

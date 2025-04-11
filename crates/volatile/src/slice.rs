@@ -31,6 +31,11 @@ impl<T> VolatileSlice<T> {
         self.0.len()
     }
 
+    /// Returns `true` if the slice is empty.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
     /// Copies the elements from `other` into `self`
     ///
     /// # Panics

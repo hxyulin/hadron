@@ -50,7 +50,7 @@ impl KernelAllocator {
     /// - `ident`: The identifier of the zone allocator.
     /// - `initial_size`: The initial size of the zone allocator.
     /// - `alloc_size`: The allocation size of the zone allocator.
-    pub fn create_zone(&self, ident: &'static str, initial_size: usize, alloc_size: usize) -> ZoneId {
+    pub fn create_zone(&self, _ident: &'static str, _initial_size: usize, _alloc_size: usize) -> ZoneId {
         todo!()
     }
 
@@ -105,7 +105,6 @@ impl GenericAllocator {
 
     /// Grows the heap, and returns the new size of the heap.
     unsafe fn grow(&mut self) -> usize {
-        panic!("TODO: Implement grow");
         let new_size = self.alloc.size() * Self::EXPANSION_FACTOR;
         assert!(new_size <= mappings::KERNEL_HEAP_SIZE as usize, "Heap is full");
         let extra_pages = (new_size - self.alloc.size()).div_ceil(Size4KiB::SIZE as usize);
@@ -161,7 +160,7 @@ impl ZoneAllocator {
     }
 
     /// Deallocate a block in the zone.
-    unsafe fn dealloc(&mut self, ptr: *mut u8) {
+    unsafe fn dealloc(&mut self, _ptr: *mut u8) {
         todo!()
     }
 }
@@ -177,11 +176,11 @@ unsafe impl GlobalAlloc for KernelAllocator {
 }
 
 /// Allocates a fixed size array using a zone allocator.
-pub fn z_alloc(id: ZoneId) -> *mut u8 {
+pub fn z_alloc(_id: ZoneId) -> *mut u8 {
     todo!()
 }
 
 /// Deallocates a fixed size array using a zone allocator.
-pub fn z_dealloc(id: ZoneId, ptr: *mut u8) {
+pub fn z_dealloc(_id: ZoneId, _ptr: *mut u8) {
     todo!()
 }

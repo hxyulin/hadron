@@ -4,7 +4,7 @@
 #![feature(custom_test_frameworks, abi_x86_interrupt, allocator_api)]
 #![test_runner(crate::tests::test_runner)]
 #![reexport_test_harness_main = "test_main"]
-#![allow(unexpected_cfgs, dead_code)]
+#![allow(unexpected_cfgs, dead_code, clippy::new_without_default)]
 
 use base::{arch::acpi, mem::alloc::KernelAllocator};
 

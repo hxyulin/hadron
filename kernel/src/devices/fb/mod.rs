@@ -121,6 +121,6 @@ impl FbDevice for Framebuffer {
     }
 
     fn raw_buffer(&mut self) -> &mut VolatileSlice<u8> {
-        &mut self.buffer
+        self.buffer
     }
 }

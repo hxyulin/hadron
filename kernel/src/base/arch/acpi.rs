@@ -1,11 +1,18 @@
-use alloc::{collections::btree_map::BTreeMap, sync::Arc};
-use spin::Mutex;
+use alloc::{boxed::Box, collections::btree_map::BTreeMap, sync::Arc};
+use spin::{Mutex, rwlock::RwLock};
 use x86_64::{
     PhysAddr, VirtAddr,
     structures::paging::{Page, PageTableFlags, PhysFrame, frame::PhysFrameRangeInclusive, page::PageRangeInclusive},
 };
 
-use crate::base::mem::{map_page, unmap_page};
+use crate::{
+    base::{
+        info::kernel_info,
+        io::mmio::allocate_persistent_mmio,
+        mem::{map_page, unmap_page},
+    },
+    util::timer::hpet::Hpet,
+};
 use core::ptr::NonNull;
 
 /// Initialize the ACPI subsystem
@@ -16,18 +23,37 @@ use core::ptr::NonNull;
 pub fn init(rsdp: PhysAddr) {
     let mapper = AcpiMapper::new();
     let tables =
-        unsafe { acpi::AcpiTables::from_rsdp(mapper, rsdp.as_u64() as usize) }.expect("Failed to parse ACPI tables");
-    let platform_info = tables.platform_info().expect("Failed to parse platform info");
+        unsafe { acpi::AcpiTables::from_rsdp(mapper, rsdp.as_u64() as usize) }.expect("failed to parse ACPI tables");
+    let platform_info = tables.platform_info().expect("failed to parse platform info");
+    match acpi::HpetInfo::new(&tables) {
+        Ok(hpet) => parse_hpet_info(hpet),
+        Err(e) => log::warn!("ACPI: failed to parse HPET info: {:?}", e),
+    }
     parse_platform_info(&platform_info);
+}
+
+fn parse_hpet_info(hpet: acpi::HpetInfo) {
+    let virt_addr = allocate_persistent_mmio(PhysAddr::new(hpet.base_address as u64), Hpet::SIZE_ALIGNED);
+    let mut hpet = Hpet::new(virt_addr, hpet);
+    unsafe { hpet.init() };
+    kernel_info().timer.init_once(|| RwLock::new(Box::new(hpet)));
 }
 
 /// Parses the platform info and populates data structures
 fn parse_platform_info(platform_info: &acpi::PlatformInfo<alloc::alloc::Global>) {
+    log::debug!("ACPI: parsing platform info...");
     match platform_info.power_profile {
-        acpi::PowerProfile::Unspecified => log::warn!("ACPI: Unspecified power profile"),
+        acpi::PowerProfile::Unspecified => log::warn!("ACPI: unspecified power profile"),
         _ => {}
     }
-    log::info!("ACPI: Platform info: {:?}", platform_info);
+    match &platform_info.interrupt_model {
+        acpi::InterruptModel::Apic(apic) => {
+            log::debug!("ACPI: interrupt model: APIC");
+            log::debug!("{:?}", apic);
+        }
+        _ => panic!("ACPI: unknown/unsupported interrupt model"),
+    }
+    log::info!("ACPI: platform info: {:?}", platform_info);
 }
 
 /// A mapper to map ACPI frames to logical addresses
@@ -50,7 +76,6 @@ impl AcpiMapperInner {
             return;
         }
         self.mapped_frames.insert(start_addr, 1);
-        log::debug!("Mapping frame {:?}", frame);
         unsafe {
             map_page(
                 frame,
@@ -65,7 +90,6 @@ impl AcpiMapperInner {
         let count = self.mapped_frames.get_mut(&start_addr).expect("Frame not mapped");
         *count -= 1;
         if *count == 0 {
-            log::debug!("Unmapping page {:?}", page);
             self.mapped_frames.remove(&start_addr);
             unsafe { unmap_page(page.start_address()) };
         }
