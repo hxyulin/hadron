@@ -1,14 +1,18 @@
 CONFIG_FILE := kernel_conf.json
 MACHINE_TRIPLE := $(shell rustc -vV | grep host | awk '{ print $$2 }')
+
+.PHONY: build kernel run defconfig menuconfig clean info
+build: kernel
+
+defconfig:
+	@cargo run -p menuconfig --target "$(MACHINE_TRIPLE)" -- --generate-defconfig $(CONFIG_FILE)
+
 # If kernel_conf is not found, generate it
 ifeq ("$(wildcard $(CONFIG_FILE))","")
 	$(MAKE) defconfig
 endif
 TARGET := $(shell jq -r '.target' kernel_conf.json)
 TARGET_TRIPLE := "$(TARGET)-unknown-none"
-
-.PHONY: build kernel run defconfig menuconfig clean info
-build: kernel
 
 info:
 	@echo "Target triple: $(TARGET_TRIPLE)"
@@ -21,9 +25,6 @@ $(CONFIG_FILE):
 
 kernel: $(CONFIG_FILE)
 	@$(MAKE) -C kernel TARGET_TRIPLE="$(TARGET_TRIPLE)" CONFIG_FILE="../$(CONFIG_FILE)" build
-
-defconfig:
-	@cargo run -p menuconfig --target "$(MACHINE_TRIPLE)" -- --generate-defconfig $(CONFIG_FILE)
 
 menuconfig:
 	cargo run -p menuconfig --target "$(MACHINE_TRIPLE)" -- $(CONFIG_FILE)

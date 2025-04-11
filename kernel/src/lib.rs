@@ -42,15 +42,20 @@ pub struct KernelParams {
 /// The heap is also setup, but the size can be non standard.
 #[unsafe(no_mangle)]
 extern "C" fn kernel_main(params: KernelParams) -> ! {
-    let kernel_info = kernel_info();
-
     panic!("Params: {:#?}\nReached end of kernel", params);
+}
+
+#[cfg_attr(test, panic_handler)]
+pub fn kernel_panic(info: &core::panic::PanicInfo) -> ! {
+    if boot::is_boot() {
+        boot::boot_panic(info);
+    } else {
+        loop {}
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use core::panic::PanicInfo;
-
     #[unsafe(no_mangle)]
     extern "C" fn kernel_entry() -> ! {
         crate::kernel_entry()
@@ -60,14 +65,5 @@ mod tests {
         for test in tests {
             test();
         }
-    }
-
-    #[panic_handler]
-    fn panic(info: &PanicInfo) -> ! {
-        let mut serial = unsafe { uart_16550::SerialPort::new(0x3F8) };
-        serial.init();
-        use core::fmt::Write;
-        writeln!(serial, "panic: {}", info).unwrap();
-        loop {}
     }
 }

@@ -1,3 +1,5 @@
+use volatile::slice::VolatileSlice;
+
 use crate::devices::framebuffer::{Framebuffer, FramebufferWriterInner};
 
 pub struct FramebufferWriter {
@@ -14,11 +16,20 @@ impl FramebufferWriter {
     }
 
     pub fn fb_addr(&self) -> usize {
-        self.fb.fb_addr()
+        self.fb.buffer.as_ptr() as usize
+    }
+
+    pub unsafe fn set_fb_addr(&mut self, addr: usize) {
+        let slice = unsafe { core::slice::from_raw_parts_mut(addr as *mut u8, self.fb.buffer.len()) };
+        self.fb.buffer = VolatileSlice::from_slice_mut(slice);
     }
 
     pub fn fb_size(&self) -> usize {
-        self.fb.size()
+        self.fb.buffer.len()
+    }
+
+    pub fn to_inner(self) -> (Framebuffer, FramebufferWriterInner) {
+        (self.fb, self.inner)
     }
 }
 

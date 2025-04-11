@@ -32,4 +32,3 @@ impl Write for SerialWriter {
         self.port.write_char(c)
     }
 }
-

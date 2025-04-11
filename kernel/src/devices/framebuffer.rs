@@ -52,8 +52,8 @@ pub struct FramebufferInfo {
 
 #[derive(Debug)]
 pub struct Framebuffer {
-    info: FramebufferInfo,
-    buffer: &'static mut VolatileSlice<u8>,
+    pub info: FramebufferInfo,
+    pub buffer: &'static mut VolatileSlice<u8>,
 }
 
 impl Framebuffer {
@@ -62,14 +62,6 @@ impl Framebuffer {
             info,
             buffer: VolatileSlice::from_slice_mut(buffer),
         }
-    }
-
-    pub fn fb_addr(&self) -> usize {
-        self.buffer.as_ptr() as usize
-    }
-
-    pub fn size(&self) -> usize {
-        self.buffer.len()
     }
 
     pub fn write_pixel(&mut self, x: u32, y: u32, color: u32) {
