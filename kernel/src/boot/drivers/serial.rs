@@ -1,5 +1,4 @@
 use core::fmt::Write;
-use spin::Mutex;
 use uart_16550::SerialPort;
 
 #[derive(Debug)]
@@ -16,6 +15,10 @@ impl SerialWriter {
 
     pub fn init(&mut self) {
         self.port.init();
+    }
+
+    pub fn as_port(self) -> SerialPort {
+        self.port
     }
 }
 

@@ -7,7 +7,7 @@ use super::{
 use crate::base::info::{KERNEL_INFO, KernelInfo};
 
 pub struct BootInfo {
-    pub serial: SerialWriter,
+    pub serial: Option<SerialWriter>,
     pub framebuffer: Option<FramebufferWriter>,
 
     pub hhdm_offset: u64,
@@ -21,7 +21,7 @@ pub struct BootInfo {
 impl BootInfo {
     pub const fn default() -> Self {
         Self {
-            serial: SerialWriter::new(0x3F8),
+            serial: None,
             framebuffer: None,
 
             hhdm_offset: 0,

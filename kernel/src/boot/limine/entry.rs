@@ -1,6 +1,6 @@
 use core::fmt::Arguments;
 
-use alloc::vec::Vec;
+use alloc::{sync::Arc, vec::Vec};
 use spin::Mutex;
 use x86_64::{
     PhysAddr, VirtAddr,
@@ -24,30 +24,28 @@ use crate::{
         drivers::{framebuffer::FramebufferWriter, serial::SerialWriter},
         info::boot_info_mut,
     },
-    devices::framebuffer::{Framebuffer, FramebufferInfo, PixelFormat},
+    devices::{
+        fb::{Framebuffer, FramebufferInfo, PixelFormat},
+        tty::{fb::VirtFbTtyDevice, serial::SerialDevice},
+    },
+    util::logger::LOGGER,
 };
 
 macro_rules! print {
     ($bi:ident, $($arg:tt)*) => {
         write_fmt(
-            &mut $bi.serial,
+            $bi.serial.as_mut(),
             $bi.framebuffer.as_mut(),
             format_args!($($arg)*),
         )
     }
 }
 
-fn write_str(serial: &mut SerialWriter, fb: Option<&mut FramebufferWriter>, str: &str) {
+fn write_fmt(serial: Option<&mut SerialWriter>, fb: Option<&mut FramebufferWriter>, args: Arguments) {
     use core::fmt::Write;
-    _ = serial.write_str(str);
-    if let Some(framebuffer) = fb {
-        _ = framebuffer.write_str(str);
+    if let Some(serial) = serial {
+        _ = serial.write_fmt(args);
     }
-}
-
-fn write_fmt(serial: &mut SerialWriter, fb: Option<&mut FramebufferWriter>, args: Arguments) {
-    use core::fmt::Write;
-    _ = serial.write_fmt(args);
     if let Some(framebuffer) = fb {
         _ = framebuffer.write_fmt(args);
     }
@@ -64,14 +62,7 @@ pub fn limine_print_panic(info: &core::panic::PanicInfo) {
     // SAFETY: If we panic, we are in an unsafe context anyways,
     // we try to notify the user about the panic
     let boot_info = unsafe { boot_info_mut() };
-    write_fmt(
-        &mut boot_info.serial,
-        // There is a chance that the framebuffer is not available, but a page fault is fine
-        // anyways,
-        // since if we kernel panic it is unrecoverable
-        boot_info.framebuffer.as_mut(),
-        format_args!("Kernel panicked at '{:?}'\n", info),
-    );
+    print!(boot_info, "Kernel panicked at '{:?}'\n", info);
 }
 
 /// Initializes the core of the kernel.
@@ -83,7 +74,11 @@ pub fn limine_print_panic(info: &core::panic::PanicInfo) {
 fn init_core() {
     let boot_info = unsafe { boot_info_mut() };
     // We initialize the seiral port so it is available for printing
-    boot_info.serial.init();
+    boot_info.serial = {
+        let mut serial = SerialWriter::new(0x3F8);
+        serial.init();
+        Some(serial)
+    };
 
     if !requests::BASE_REVISION.is_supported() {
         print!(
@@ -206,7 +201,7 @@ fn allocate_pages() -> ! {
         let fb_pages = framebuffer.fb_size().div_ceil(Size4KiB::SIZE as usize);
 
         write_fmt(
-            &mut boot_info.serial,
+            boot_info.serial.as_mut(),
             Some(framebuffer),
             format_args!(
                 "Framebuffer: (VirtAddr: {:#x}, PhysAddr: {:#x}, Size: {})\n",
@@ -234,7 +229,7 @@ fn allocate_pages() -> ! {
     let page_table_ptr = page_table.phys_addr().as_u64();
 
     write_fmt(
-        &mut boot_info.serial,
+        boot_info.serial.as_mut(),
         None, // We can't use it yet, since we set the virt addr to the new mapping
         format_args!("Switching to new page table... (PML4: {:#x})\n", page_table_ptr),
     );
@@ -278,17 +273,28 @@ fn limine_stage_2() -> ! {
         new_total_pages * Size4KiB::SIZE
     );
 
-    let runtime_info = KernelInfo::Kernel(RuntimeInfo::new(
-        Mutex::new(frame_allocator),
-        Mutex::new(page_table),
-        framebuffers,
-    ));
+    let runtime_info = RuntimeInfo::new(Mutex::new(frame_allocator), Mutex::new(page_table));
+
+    // Now we need to convert our serial port to a TTY device
+    // and the framebuffer to a framebuffer device, and a virtual TTY device
+    let serial_port = boot_info.serial.take().unwrap().as_port();
+    let serial_device = SerialDevice::from_initialized_port(serial_port);
+    let serial_id = runtime_info.devices.add_tty_device(Arc::new(Mutex::new(serial_device)));
+    LOGGER.add_output(serial_id);
+
+    let (fb, writer) = boot_info.framebuffer.take().unwrap().to_inner();
+    let fb_id = runtime_info.devices.add_fb_device(Arc::new(Mutex::new(fb)));
+    let mut virt_fb = VirtFbTtyDevice::new(fb_id);
+    virt_fb.set_pos(writer.x_pos() as u32, writer.y_pos() as u32);
+    let virt_fb_id = runtime_info.devices.add_tty_device(Arc::new(Mutex::new(virt_fb)));
+    LOGGER.add_output(virt_fb_id);
+
     unsafe {
         use crate::base::info::KERNEL_INFO;
-        KERNEL_INFO = runtime_info
+        KERNEL_INFO = KernelInfo::Kernel(runtime_info)
     };
-    // It is not considered not 'boot' anymore
-    crate::boot::IS_BOOT.store(false, core::sync::atomic::Ordering::Relaxed);
+    log::set_max_level(log::LevelFilter::Trace);
+    log::set_logger(&LOGGER).unwrap();
 
     jump_to_kernel_main(KernelParams { rsdp });
 }
@@ -307,15 +313,11 @@ fn create_framebuffers() -> Vec<Mutex<Framebuffer>> {
 }
 
 fn jump_to_kernel_main(params: KernelParams) -> ! {
+    // It is not considered not 'boot' anymore, since we are jumping to the kernel afterwards
+    crate::boot::IS_BOOT.store(false, core::sync::atomic::Ordering::Relaxed);
     unsafe extern "C" {
         fn kernel_main(params: KernelParams) -> !;
     }
-    /*
-        serial::write_fmt(format_args!(
-            "Jumping to kernel_main (at {:#x})\n",
-            kernel_main as usize
-        ));
-    */
     unsafe { kernel_main(params) };
 }
 

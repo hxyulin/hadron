@@ -1,30 +1,24 @@
 //! The base info module.
 //! This contains the base KernelInfo struct, which contains information about the kernel.
 
-use alloc::vec::Vec;
 use spin::Mutex;
 
-use crate::{boot::info::BootInfo, devices::framebuffer::Framebuffer};
+use crate::{boot::info::BootInfo, devices::DeviceManager};
 
 use super::mem::{frame_allocator::KernelFrameAllocator, page_table::KernelPageTable};
 
-#[derive(Debug)]
 pub struct RuntimeInfo {
     pub(super) frame_allocator: Mutex<KernelFrameAllocator>,
     pub(super) page_table: Mutex<KernelPageTable>,
-    pub framebuffers: Vec<Mutex<Framebuffer>>,
+    pub devices: DeviceManager,
 }
 
 impl RuntimeInfo {
-    pub fn new(
-        frame_allocator: Mutex<KernelFrameAllocator>,
-        page_table: Mutex<KernelPageTable>,
-        framebuffers: Vec<Mutex<Framebuffer>>,
-    ) -> Self {
+    pub fn new(frame_allocator: Mutex<KernelFrameAllocator>, page_table: Mutex<KernelPageTable>) -> Self {
         Self {
             frame_allocator,
             page_table,
-            framebuffers,
+            devices: DeviceManager::new(),
         }
     }
 }

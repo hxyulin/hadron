@@ -6,13 +6,13 @@
 #![reexport_test_harness_main = "test_main"]
 #![allow(unexpected_cfgs)]
 
-use base::info::kernel_info;
 use linked_list_allocator::LockedHeap;
 
 pub mod base;
 /// Boot shouldn't be accessible from the main kernel logic
 pub(crate) mod boot;
 pub mod devices;
+pub mod util;
 
 #[cfg(any(kernel_bootloader = "limine", feature = "never"))]
 pub use boot::limine::limine_entry as kernel_entry;
@@ -40,9 +40,12 @@ pub struct KernelParams {
 /// When this function is called, the `kernel_info` is setup with the correct information.
 /// See [`RuntimeInfo`](crate::base::info::RuntimeInfo) for more information.
 /// The heap is also setup, but the size can be non standard.
+/// The logger should be set up, and the TTY devices should be added to the logger.
 #[unsafe(no_mangle)]
 extern "C" fn kernel_main(params: KernelParams) -> ! {
-    panic!("Params: {:#?}\nReached end of kernel", params);
+    log::info!("Hello from kernel!");
+
+    panic!("Reached end of kernel");
 }
 
 #[cfg_attr(test, panic_handler)]
@@ -50,6 +53,7 @@ pub fn kernel_panic(info: &core::panic::PanicInfo) -> ! {
     if boot::is_boot() {
         boot::boot_panic(info);
     } else {
+        log::error!("KERNEL PANIC: {}", info);
         loop {}
     }
 }

@@ -330,6 +330,7 @@ name = "hadron-kernel"
 version = "0.0.1"
 dependencies = [
  "acpi",
+ "bitflags 2.9.0",
  "lazy_static",
  "limine",
  "linked_list_allocator",
