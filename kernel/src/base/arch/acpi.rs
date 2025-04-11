@@ -25,6 +25,7 @@ fn parse_platform_info(platform_info: &acpi::PlatformInfo<alloc::alloc::Global>)
         acpi::PowerProfile::Unspecified => log::warn!("ACPI: Unspecified power profile"),
         _ => {},
     }
+    log::info!("ACPI: Platform info: {:?}", platform_info);
 }
 
 /// A mapper to map ACPI frames to logical addresses

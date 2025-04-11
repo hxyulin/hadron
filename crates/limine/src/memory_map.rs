@@ -50,6 +50,11 @@ impl<'a> MemoryMapIter<'a> {
         Self { memory_map, index: 0 }
     }
 
+    #[cfg(feature = "internal-api")]
+    pub fn internal_new(memory_map: &'a [NonNull<MemoryMapEntry>]) -> Self {
+        Self { memory_map, index: 0 }
+    }
+
     pub fn len(&self) -> usize {
         self.memory_map.len()
     }

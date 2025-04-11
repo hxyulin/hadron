@@ -144,6 +144,11 @@ pub struct MemoryMapResponse {
 }
 
 impl MemoryMapResponse {
+    #[cfg(feature = "internal-api")]
+    pub fn internal_new(revision: u64, memory_map_entries: u64, memory_map: NonNull<NonNull<MemoryMapEntry>>) -> Self {
+        Self { revision, memory_map_entries, memory_map }
+    }
+
     /// Returns the number of memory map entries.
     pub(crate) fn count(&self) -> usize {
         self.memory_map_entries as usize

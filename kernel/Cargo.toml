@@ -40,6 +40,8 @@ menuconfig.workspace = true
 
 [dev-dependencies]
 static_assertions.workspace = true
+limine = { workspace = true, features = ["internal-api"] }
+hadron-test.workspace = true
 
 [package.metadata.qemu_runner]
 limine-branch = "v8.x-binary"

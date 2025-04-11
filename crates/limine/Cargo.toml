@@ -5,3 +5,7 @@ edition.workspace = true
 publish = false
 
 [dependencies]
+
+[features]
+default = []
+internal-api = []

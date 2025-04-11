@@ -1,3 +1,4 @@
+use linked_list_allocator::LockedHeap;
 use x86_64::{PhysAddr, VirtAddr};
 
 use super::{
@@ -16,6 +17,7 @@ pub struct BootInfo {
     pub rsdp_addr: PhysAddr,
     pub memory_map: MemoryMap,
     pub heap: (VirtAddr, u64),
+    pub allocator: LockedHeap,
 }
 
 impl BootInfo {
@@ -30,6 +32,7 @@ impl BootInfo {
             rsdp_addr: PhysAddr::new(0),
             memory_map: MemoryMap::default(),
             heap: (VirtAddr::new(0), 0),
+            allocator: LockedHeap::empty(),
         }
     }
 }

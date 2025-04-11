@@ -105,6 +105,7 @@ impl GenericAllocator {
 
     /// Grows the heap, and returns the new size of the heap.
     unsafe fn grow(&mut self) -> usize {
+        panic!("TODO: Implement grow");
         let new_size = self.alloc.size() * Self::EXPANSION_FACTOR;
         assert!(new_size <= mappings::KERNEL_HEAP_SIZE as usize, "Heap is full");
         let extra_pages = (new_size - self.alloc.size()).div_ceil(Size4KiB::SIZE as usize);

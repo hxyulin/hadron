@@ -258,7 +258,7 @@ fn limine_stage_2() -> ! {
     print!(boot_info, "Constructing frame allocator...\n");
     let memory_map = MemoryMap::from_bootstrap(&boot_info.memory_map);
     let mut frame_allocator = KernelFrameAllocator::new(memory_map);
-    print!(boot_info, "Constructing frame allocator...\n");
+    print!(boot_info, "Constructing page tables...\n");
     let page_table = KernelPageTable::new();
     let framebuffers = create_framebuffers();
 

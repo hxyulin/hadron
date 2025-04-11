@@ -10,8 +10,7 @@ use base::{mem::alloc::KernelAllocator, arch::acpi};
 use linked_list_allocator::LockedHeap;
 
 pub mod base;
-/// Boot shouldn't be accessible from the main kernel logic
-pub(crate) mod boot;
+pub mod boot;
 pub mod devices;
 pub mod drivers;
 pub mod util;
@@ -45,6 +44,8 @@ pub struct KernelParams {
 #[unsafe(no_mangle)]
 extern "Rust" fn kernel_main(params: KernelParams) -> ! {
     acpi::init(params.rsdp);
+    #[cfg(test)]
+    hadron_test::exit_qemu(hadron_test::ExitCode::Success);
     panic!("Reached end of kernel");
 }
 

@@ -30,10 +30,12 @@ impl From<&limine::memory_map::MemoryMapEntry> for MemoryMapEntry {
 impl MemoryMap {
     pub fn parse_from_limine(&mut self, memory_map: &limine::response::MemoryMapResponse) {
         let entries = memory_map.entries();
-        let size = entries.len();
-        assert!(size <= Self::SIZE, "Too many memory map entries");
+        let size = entries.len().min(Self::SIZE as usize);
         self.size = size as u64;
         for (i, entry) in entries.enumerate() {
+            if i >= size {
+                break;
+            }
             self.entries[i] = MemoryMapEntry::from(&entry);
         }
     }
