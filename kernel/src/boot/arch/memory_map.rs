@@ -65,7 +65,6 @@ impl MemoryMapEntry {
 
 #[derive(Clone)]
 pub struct BootstrapMemoryMap {
-    // TODO: Instead of storing fixed size, we can store usable entries and just store a reference to the actual memory map for the bootloader until we have the heap
     pub(crate) size: u64,
     pub(crate) entries: [MemoryMapEntry; Self::SIZE],
 }

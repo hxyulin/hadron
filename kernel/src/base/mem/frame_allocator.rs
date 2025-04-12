@@ -29,6 +29,19 @@ impl KernelFrameAllocator {
     pub fn total_pages(&self) -> u64 {
         self.memory_map.entries.iter().map(|entry| entry.pages()).sum()
     }
+
+    pub fn memory_map(&self) -> &MemoryMap {
+        &self.memory_map
+    }
+
+    /// Returns a mutable reference to the underlying memory map
+    ///
+    /// # Safety
+    /// This is unsafe because the caller must ensure that the memory map is not modified such that
+    /// previous allocations are invalidated
+    pub unsafe fn memory_map_mut(&mut self) -> &mut MemoryMap {
+        &mut self.memory_map
+    }
 }
 
 unsafe impl FrameAllocator<Size4KiB> for KernelFrameAllocator {

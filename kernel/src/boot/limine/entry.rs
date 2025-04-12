@@ -9,13 +9,13 @@ use x86_64::{
 
 use super::requests;
 use crate::{
-    KernelParams,
+    ALLOCATOR, KernelParams,
     base::{
-        info::{KernelInfo, RuntimeInfo},
+        info::{KernelInfo, RuntimeInfo, kernel_info},
         mem::{
             frame_allocator::KernelFrameAllocator,
             mappings,
-            memory_map::{MemoryMap, MemoryRegionTag},
+            memory_map::{MemoryMap, MemoryRegionTag, finish_bootstrap},
             page_table::KernelPageTable,
         },
     },
@@ -28,7 +28,7 @@ use crate::{
         fb::{Framebuffer, FramebufferInfo, PixelFormat},
         tty::{fb::VirtFbTtyDevice, serial::SerialDevice},
     },
-    util::logger::LOGGER,
+    util::{logger::LOGGER, machine_state::MachineState},
 };
 
 macro_rules! print {
@@ -59,10 +59,32 @@ pub fn limine_entry() -> ! {
 }
 
 pub fn limine_print_panic(info: &core::panic::PanicInfo) {
+    static mut BUFFER: [u8; 4096] = [0; 4096];
     // SAFETY: If we panic, we are in an unsafe context anyways,
     // we try to notify the user about the panic
     let boot_info = unsafe { boot_info_mut() };
-    print!(boot_info, "Kernel panicked at '{:?}'\n", info);
+    let machine_state = MachineState::here();
+    print!(boot_info, "{}", machine_state);
+
+    print!(boot_info, "BOOT KERNEL PANIC: {}\n", info.message());
+    if let Some(location) = info.location() {
+        print!(
+            boot_info,
+            "    at {}:{}:{}\n",
+            location.file(),
+            location.line(),
+            location.column()
+        );
+    }
+
+    if ALLOCATOR.generic_size() != 0 {
+        let mut unwinder = crate::util::backtrace::create_unwinder(&machine_state);
+        while let Ok(Some(frame)) = unwinder.next() {
+            print!(boot_info, "    at {:#X}\n", frame.pc);
+        }
+    } else {
+        print!(boot_info, "PANIC: No allocator available for backtrace\n");
+    }
 }
 
 /// Initializes the core of the kernel.
@@ -131,7 +153,10 @@ fn populate_boot_info() {
     let kernel_addr = requests::EXECUTABLE_ADDRESS.get_response().unwrap();
     boot_info.kernel_start_phys = PhysAddr::new(kernel_addr.physical_address);
     boot_info.kernel_start_virt = VirtAddr::new(kernel_addr.virtual_address);
-    print!(boot_info, "[Boot] kernel loaded at {:#x}", boot_info.kernel_start_virt);
+    print!(
+        boot_info,
+        "[Boot] kernel loaded at {:#x}\n", boot_info.kernel_start_virt
+    );
     print!(boot_info, "[Boot] parsing memory map...\n");
     boot_info
         .memory_map
@@ -245,24 +270,17 @@ fn limine_stage_2() -> ! {
     init_heap();
 
     let boot_info = unsafe { boot_info_mut() };
-    print!(boot_info, "[Boot] constructing frame allocator...\n");
+    print!(boot_info, "[Boot] constructing memory map...\n");
     let memory_map = MemoryMap::from_bootstrap(&boot_info.memory_map);
-    let mut frame_allocator = KernelFrameAllocator::new(memory_map);
+    print!(boot_info, "[Boot] constructing frame allocator...\n");
+    let frame_allocator = KernelFrameAllocator::new(memory_map);
     print!(boot_info, "[Boot] constructing page tables...\n");
     let page_table = KernelPageTable::new();
 
     let rsdp = boot_info.rsdp_addr;
 
-    // PERF: Either remove this or make it better performing (inside `free_special_region`)
     let total_pages = frame_allocator.total_pages();
-    frame_allocator.free_special_region(MemoryRegionTag::BootloaderReclaimable);
-    let new_total_pages = frame_allocator.total_pages();
-    print!(
-        boot_info,
-        "[Boot] reclaimed {} pages (total memory {})\n",
-        new_total_pages - total_pages,
-        new_total_pages * Size4KiB::SIZE
-    );
+    print!(boot_info, "[Boot] pages available for bootstrap: {}\n", total_pages);
 
     let runtime_info = RuntimeInfo::new(Mutex::new(frame_allocator), Mutex::new(page_table));
 
@@ -282,11 +300,21 @@ fn limine_stage_2() -> ! {
 
     unsafe {
         use crate::base::info::KERNEL_INFO;
-        KERNEL_INFO = KernelInfo::Kernel(runtime_info)
-    };
+        KERNEL_INFO = KernelInfo::Kernel(runtime_info);
+    }
     log::set_logger(&LOGGER).unwrap();
     log::set_max_level(log::LevelFilter::Trace);
 
+    // Now we can allocate the rest of the memory
+    log::debug!("Allocating memory for the kernel heap");
+    finish_bootstrap();
+    log::debug!("Reclaiming bootloader memory");
+    {
+        let mut frame_allocator = kernel_info().frame_allocator.lock();
+        frame_allocator.free_special_region(MemoryRegionTag::BootloaderReclaimable);
+    }
+
+    log::debug!("Jumping to kernel main");
     jump_to_kernel_main(KernelParams { rsdp });
 }
 

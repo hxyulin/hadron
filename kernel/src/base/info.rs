@@ -14,8 +14,14 @@ use super::{
 };
 
 pub struct RuntimeInfo {
-    pub(super) frame_allocator: Mutex<KernelFrameAllocator>,
-    pub(super) page_table: Mutex<KernelPageTable>,
+    /// The frame allocator
+    ///
+    /// This shouldn't be accessed directly
+    pub frame_allocator: Mutex<KernelFrameAllocator>,
+    /// The page table
+    ///
+    /// This shouldn't be accessed directly
+    pub page_table: Mutex<KernelPageTable>,
     pub devices: DeviceManager,
     pub mmio: Mutex<KernelMmio>,
     pub pics: OnceCell<Mutex<Apics>>,

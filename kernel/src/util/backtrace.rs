@@ -160,13 +160,13 @@ impl RegisterSet {
 
 /// A call frame.
 #[derive(Debug)]
-struct CallFrame {
+pub struct CallFrame {
     pub pc: u64,
 }
 
 /// An error that can occur during unwinding.
 #[derive(Debug)]
-enum UnwinderError {
+pub enum UnwinderError {
     UnexpectedRegister(Register),
     UnsupportedCfaRule,
     UnimplementedRegisterRule,
@@ -179,7 +179,7 @@ enum UnwinderError {
 /// A virtual unwinder
 /// meaning that it doesn't actually call destructors, just unwinds the stack.
 /// This is meant to be used for backtraces, and is not meant to be recoverable.
-struct VirtualUnwinder {
+pub struct VirtualUnwinder {
     eh_info: EhInfo<'static>,
     unwind_ctx: UnwindContext<EndianSlice<'static, LittleEndian>>,
     regs: RegisterSet,
@@ -202,7 +202,7 @@ impl VirtualUnwinder {
     /// Get the next call frame.
     ///
     /// Returns `Ok(None)` or `Err(UnwinderError::NoUnwindInfo)` if there are no more frames.
-    fn next(&mut self) -> Result<Option<CallFrame>, UnwinderError> {
+    pub fn next(&mut self) -> Result<Option<CallFrame>, UnwinderError> {
         let pc = self.regs.get_pc().ok_or(UnwinderError::NoPcRegister)?;
 
         // If it is the first iteration, we dont need to unwind yet, just return the current frame.
@@ -258,15 +258,20 @@ impl VirtualUnwinder {
 }
 
 #[inline(always)]
+pub fn create_unwinder(state: &MachineState) -> VirtualUnwinder {
+    let eh_info = unsafe { EhInfo::from_hdr_ptr(&raw const __EH_FRAME_HDR_START) };
+    let registers = RegisterSet::from_machine_state(state);
+    VirtualUnwinder::new(eh_info, registers)
+}
+
+#[inline(always)]
 pub fn panic_backtrace(panic_info: &core::panic::PanicInfo) {
     log::error!("KERNEL PANIC: {}", panic_info.message());
     if let Some(location) = panic_info.location() {
         log::error!("    at {}:{}:{}", location.file(), location.line(), location.column());
     }
     let machine_state = MachineState::here();
-    let eh_info = unsafe { EhInfo::from_hdr_ptr(&raw const __EH_FRAME_HDR_START) };
-    let registers = RegisterSet::from_machine_state(&machine_state);
-    let mut unwinder = VirtualUnwinder::new(eh_info, registers);
+    let mut unwinder = create_unwinder(&machine_state);
 
     // Print the backtrace, ignoring any errors, since we don't care about them.
     while let Ok(Some(frame)) = unwinder.next() {

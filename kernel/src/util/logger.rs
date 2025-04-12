@@ -45,8 +45,8 @@ impl Log for KernelLogger {
                 let mut writer = TtyDeviceWriter { tty: &mut *device };
                 writer
                     .write_fmt(format_args!(
-                        "{:>12} {:<5}: {}\n",
-                        format!("[{:.5}]", time_since_boot().as_secs_f32()),
+                        "[{:.5}] {:<5}: {}\n",
+                        time_since_boot().as_secs_f32(),
                         record.level(),
                         record.args()
                     ))

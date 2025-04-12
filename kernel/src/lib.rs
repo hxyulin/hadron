@@ -42,6 +42,7 @@ pub struct KernelParams {
 /// The logger should be set up, and the TTY devices should be added to the logger.
 #[unsafe(no_mangle)]
 extern "Rust" fn kernel_main(params: KernelParams) -> ! {
+    log::debug!("Initializing kernel");
     acpi::init(params.rsdp);
 
     x86_64::instructions::interrupts::enable();

@@ -54,7 +54,7 @@ extra-files = []
 boot-type = "bios"
 test-success-exit-code = 33
 test-args = ["-device", "isa-debug-exit,iobase=0xf4,iosize=0x04"]
-run-args = []
+run-args = ["-s"]
 
 run-command = [
     "qemu-system-x86_64",
