@@ -32,11 +32,11 @@ x86_64 = "0.15.2"
 uart_16550 = { version = "0.3.2", features = ["nightly"] }
 linked_list_allocator = "0.10.5"
 acpi = "5.2.0"
-backtrace = { version = "0.3.74", default-features = false }
 chrono = { version = "0.4.40", default-features = false, features = ["alloc"] }
 bit_field = "0.10.2"
 conquer-once = { version = "0.4.0", default-features = false }
 raw-cpuid = "11.5.0"
+gimli = { version = "0.27.2", default-features = false, features = ["read"] }
 
 [build-dependencies]
 menuconfig.workspace = true

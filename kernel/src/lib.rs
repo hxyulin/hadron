@@ -43,6 +43,9 @@ pub struct KernelParams {
 #[unsafe(no_mangle)]
 extern "Rust" fn kernel_main(params: KernelParams) -> ! {
     acpi::init(params.rsdp);
+
+    x86_64::instructions::interrupts::enable();
+
     #[cfg(test)]
     hadron_test::exit_qemu(hadron_test::ExitCode::Success);
     panic!("Reached end of kernel");
@@ -50,11 +53,12 @@ extern "Rust" fn kernel_main(params: KernelParams) -> ! {
 
 #[cfg_attr(test, panic_handler)]
 pub fn kernel_panic(info: &core::panic::PanicInfo) -> ! {
+    x86_64::instructions::interrupts::disable();
     if boot::is_boot() {
         boot::boot_panic(info);
     } else {
-        log::error!("KERNEL PANIC: {}", info);
-        // TODO: Backtrace
+        use crate::util::backtrace::panic_backtrace;
+        panic_backtrace(info);
         loop {
             x86_64::instructions::hlt();
         }

@@ -39,6 +39,21 @@ SECTIONS
         KEEP(*(.requests_end_marker))
     } :data
 
+    . = ALIGN(8);
+    .eh_frame : {
+        __EH_FRAME_START = .;
+        *(.eh_frame .eh_frame.*)
+        __EH_FRAME_END = .;
+    } :data
+
+    . = ALIGN(8);
+    .eh_frame_hdr : {
+        __EH_FRAME_HDR_START = .;
+        *(.eh_frame_hdr)
+        __EH_FRAME_HDR_END = .;
+    } :data
+
+
     /* NOTE: .bss needs to be the last thing mapped to :data, otherwise lots of */
     /* unnecessary zeros will be written to the binary. */
     /* If you need, for example, .init_array and .fini_array, those should be placed */
@@ -52,7 +67,6 @@ SECTIONS
 
     /DISCARD/ : {
         *(.note .note.*)
-        *(.eh_frame .eh_frame.*)
     }
 }
 
