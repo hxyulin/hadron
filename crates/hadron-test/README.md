@@ -7,6 +7,6 @@ Currently, it only supports the Limine bootloader, and can be tested using [carg
 
 To run tests, you can use the following command:
 ```bash
-RUSTFLAGS="-C link-arg=-Tutil/limine-x86_64-link.ld -C relocation-model=static -C panic=unwind" cargo test -p hadron-test --example basic_test --target x86_64-un
+RUSTFLAGS="-C link-arg=-Ttargets/limine-x86_64-link.ld -C relocation-model=static -C panic=unwind" cargo test -p hadron-test --example basic_test --target x86_64-un
 known-none
 ```

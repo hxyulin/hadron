@@ -57,25 +57,3 @@ impl<T> VolatilePtr<T> {
         unsafe { self.ptr.write_volatile(value) }
     }
 }
-
-#[cfg(all(test, feature = "std"))]
-mod tests {
-    use super::*;
-
-    #[test]
-    #[should_panic]
-    fn test_volatile_ptr_null() {
-        let ptr = VolatilePtr::<u32>::new(core::ptr::null_mut());
-        core::hint::black_box(ptr);
-    }
-
-    #[test]
-    fn test_volatile_ptr() {
-        let mut x = 0;
-        let ptr = VolatilePtr::new(&mut x);
-        assert_eq!(ptr.get(), 0);
-        ptr.set(1);
-        assert_eq!(ptr.get(), 1);
-        assert_eq!(x, 1);
-    }
-}

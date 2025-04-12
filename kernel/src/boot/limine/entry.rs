@@ -9,29 +9,25 @@ use x86_64::{
 
 use super::requests;
 use crate::{
-    ALLOCATOR, KernelParams,
     base::{
-        info::{KernelInfo, RuntimeInfo, kernel_info},
+        info::{kernel_info, KernelInfo, RuntimeInfo},
         mem::{
             frame_allocator::KernelFrameAllocator,
             mappings,
             memory_map::{MemoryMap, MemoryRegionTag},
             page_table::KernelPageTable,
         },
-    },
-    boot::{
+    }, boot::{
         arch::{
             memory_map::FrameBasedAllocator,
             x86_64::{frame_allocator::BasicFrameAllocator, page_table::BootstrapPageTable},
         },
         drivers::{framebuffer::FramebufferWriter, serial::SerialWriter},
         info::boot_info_mut,
-    },
-    devices::{
+    }, devices::{
         fb::{Framebuffer, FramebufferInfo, PixelFormat},
         tty::{fb::VirtFbTtyDevice, serial::SerialDevice},
-    },
-    util::{logger::LOGGER, machine_state::MachineState},
+    }, util::{logger::{LOGGER, WRITER}, machine_state::MachineState}, KernelParams, ALLOCATOR
 };
 
 macro_rules! print {
@@ -137,9 +133,9 @@ fn init_core() {
     );
 
     print!(boot_info, "[Boot] initializing GDT...\n");
-    crate::base::arch::gdt::init();
+    crate::base::arch::x86_64::gdt::init();
     print!(boot_info, "[Boot] initializing IDT...\n");
-    crate::base::arch::idt::init();
+    crate::base::arch::x86_64::idt::init();
 }
 
 /// Populates the boot info.
@@ -336,14 +332,14 @@ fn limine_stage_2() -> ! {
     let serial_port = boot_info.serial.take().unwrap().as_port();
     let serial_device = SerialDevice::from_initialized_port(serial_port);
     let serial_id = runtime_info.devices.add_tty_device(Arc::new(Mutex::new(serial_device)));
-    LOGGER.add_output(serial_id);
+    WRITER.add_output(serial_id);
 
     let (fb, writer) = boot_info.framebuffer.take().unwrap().to_inner();
     let fb_id = runtime_info.devices.add_fb_device(Arc::new(Mutex::new(fb)));
     let mut virt_fb = VirtFbTtyDevice::new(fb_id);
     virt_fb.set_pos(writer.x_pos() as u32, writer.y_pos() as u32);
     let virt_fb_id = runtime_info.devices.add_tty_device(Arc::new(Mutex::new(virt_fb)));
-    LOGGER.add_output(virt_fb_id);
+    WRITER.add_output(virt_fb_id);
 
     unsafe {
         use crate::base::info::KERNEL_INFO;

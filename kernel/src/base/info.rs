@@ -8,7 +8,7 @@ use spin::{Mutex, RwLock};
 use crate::{boot::info::BootInfo, devices::DeviceManager, util::timer::Timer};
 
 use super::{
-    arch::apic::Apics,
+    arch::x86_64::apic::Apics,
     io::mmio::KernelMmio,
     mem::{frame_allocator::KernelFrameAllocator, page_table::KernelPageTable},
 };

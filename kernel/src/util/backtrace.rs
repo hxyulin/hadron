@@ -5,7 +5,7 @@ use gimli::{
     Register, RegisterRule, UnwindContext, UnwindSection, X86_64,
 };
 
-use crate::util::machine_state::MachineState;
+use crate::{println, util::machine_state::MachineState};
 
 unsafe extern "C" {
     /// The start of the `.eh_frame_hdr` section.
@@ -266,17 +266,17 @@ pub fn create_unwinder(state: &MachineState) -> VirtualUnwinder {
 
 #[inline(always)]
 pub fn panic_backtrace(panic_info: &core::panic::PanicInfo) {
-    log::error!("KERNEL PANIC: {}", panic_info.message());
+    println!("KERNEL PANIC: {}", panic_info.message());
     if let Some(location) = panic_info.location() {
-        log::error!("    at {}:{}:{}", location.file(), location.line(), location.column());
+        println!("    at {}:{}:{}", location.file(), location.line(), location.column());
     }
     let machine_state = MachineState::here();
     let mut unwinder = create_unwinder(&machine_state);
 
     // Print the backtrace, ignoring any errors, since we don't care about them.
     while let Ok(Some(frame)) = unwinder.next() {
-        log::error!("    at {:#X}", frame.pc);
+        println!("    at {:#X}", frame.pc);
     }
 
-    log::error!("{}", machine_state);
+    println!("{}", machine_state);
 }

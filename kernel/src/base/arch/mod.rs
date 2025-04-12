@@ -1,4 +1,2 @@
-pub mod acpi;
-pub mod gdt;
-pub mod idt;
-pub mod apic;
+#[cfg(target_arch = "x86_64")]
+pub mod x86_64;

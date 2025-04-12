@@ -1,6 +1,6 @@
-#![cfg_attr(not(feature = "std"), no_std)]
 #![allow(internal_features)]
 #![feature(core_intrinsics)]
+#![no_std]
 
 pub mod cell;
 pub mod ptr;

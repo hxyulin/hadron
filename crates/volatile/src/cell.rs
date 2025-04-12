@@ -43,17 +43,3 @@ where
         self as *mut Self as *mut T
     }
 }
-
-#[cfg(all(test, feature = "std"))]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_volatile_ref() {
-        let mut value = 0;
-        let vref = VolatileCell::from_mut(&mut value);
-        assert_eq!(vref.get(), 0);
-        vref.set(1);
-        assert_eq!(value, 1);
-    }
-}

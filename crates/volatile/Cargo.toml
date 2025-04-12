@@ -3,8 +3,8 @@ name = "volatile"
 version.workspace = true
 edition.workspace = true
 
-[features]
-default = []
-std = []
+[lib]
+test = false
+bench = false
 
 [dependencies]

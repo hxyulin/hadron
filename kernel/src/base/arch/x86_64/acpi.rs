@@ -7,6 +7,7 @@ use x86_64::{
 
 use crate::{
     base::{
+        arch::x86_64::apic::Apics,
         info::kernel_info,
         io::mmio::allocate_persistent_mmio,
         mem::{map_page, unmap_page},
@@ -49,7 +50,8 @@ fn parse_platform_info(platform_info: &acpi::PlatformInfo<alloc::alloc::Global>)
     match &platform_info.interrupt_model {
         acpi::InterruptModel::Apic(apic) => {
             log::debug!("ACPI: interrupt model: APIC");
-            log::debug!("{:?}", apic);
+            let apics = Apics::new(apic);
+            kernel_info().pics.init_once(|| Mutex::new(apics));
         }
         _ => panic!("ACPI: unknown/unsupported interrupt model"),
     }

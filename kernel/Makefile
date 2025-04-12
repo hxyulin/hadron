@@ -1,8 +1,8 @@
-TARGET_TRIPLE ?= x86_64-unknown-none
+TARGET_FILE ?= ../targets/x86_64-unknown-hadron.json
 CONFIG_FILE ?= ../kernel_conf.json
 
 DEBUG := $(shell jq -r '.debug' $(CONFIG_FILE))
-RUSTFLAGS := --target $(TARGET_TRIPLE)
+RUSTFLAGS := --target $(TARGET_FILE)
 RUSTENV := CONFIG_FILE="$(CONFIG_FILE)"
 
 ifeq ($(DEBUG), false)
