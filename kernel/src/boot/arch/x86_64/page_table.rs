@@ -1,8 +1,11 @@
+use alloc::vec::Vec;
 use x86_64::{
     PhysAddr, VirtAddr,
     registers::control::Cr3Flags,
     structures::paging::{FrameDeallocator, PageTable, PageTableFlags, PhysFrame, page_table::PageTableEntry},
 };
+
+use crate::boot::arch::memory_map::FrameBasedAllocator;
 
 use super::frame_allocator::BasicFrameAllocator;
 
@@ -65,16 +68,21 @@ impl PageSubTable for PtTable {
     }
 }
 
-pub struct BootstrapPageTable {
+#[derive(Debug)]
+pub struct BootstrapPageTable<'a> {
     pml4_phys: PhysFrame,
-    pdpts: [Option<PdptTable>; 8],
-    pds: [Option<PdTable>; 8],
-    pt: [Option<PtTable>; 8],
+    pdpts: Vec<PdptTable, &'a FrameBasedAllocator>,
+    pds: Vec<PdTable, &'a FrameBasedAllocator>,
+    pt: Vec<PtTable, &'a FrameBasedAllocator>,
     hhdm_offset: u64,
 }
 
-impl BootstrapPageTable {
-    pub fn new(hhdm_offset: u64, frame_allocator: &mut BasicFrameAllocator) -> Self {
+impl<'a> BootstrapPageTable<'a> {
+    pub fn new(
+        hhdm_offset: u64,
+        frame_allocator: &mut BasicFrameAllocator,
+        allocator: &'a FrameBasedAllocator,
+    ) -> Self {
         let pml4_phys = frame_allocator
             .allocate_mapped_frame()
             .expect("Failed to allocate frame");
@@ -82,9 +90,9 @@ impl BootstrapPageTable {
         unsafe { pml4_addr.as_mut_ptr::<PageTable>().write(PageTable::new()) };
         let table = Self {
             pml4_phys,
-            pdpts: [None; 8],
-            pds: [None; 8],
-            pt: [None; 8],
+            pdpts: Vec::new_in(allocator),
+            pds: Vec::new_in(allocator),
+            pt: Vec::new_in(allocator),
             hhdm_offset,
         };
 
@@ -118,13 +126,9 @@ impl BootstrapPageTable {
 
     fn try_get_pdpt(&self, pml4_index: u16) -> Option<PdptTable> {
         debug_assert!(pml4_index != 510, "Cannot use recursive memory region");
-        self.pdpts.iter().find_map(|p| {
-            if let Some(p) = p {
-                if p.pml4_index == pml4_index { Some(*p) } else { None }
-            } else {
-                None
-            }
-        })
+        self.pdpts
+            .iter()
+            .find_map(|p| if p.pml4_index == pml4_index { Some(*p) } else { None })
     }
 
     fn get_or_create_pdpt(&mut self, pml4_index: u16, frame_allocator: &mut BasicFrameAllocator) -> PdptTable {
@@ -137,36 +141,28 @@ impl BootstrapPageTable {
                 addr,
                 pml4_index,
             };
-            // Find first free entry
-            for i in 0..8 {
-                if self.pdpts[i].is_none() {
-                    self.pdpts[i] = Some(table);
-                    let page_table = self.get_pml4();
-                    let mut entry = PageTableEntry::new();
-                    entry.set_addr(
-                        table.frame.start_address(),
-                        PageTableFlags::PRESENT | PageTableFlags::WRITABLE,
-                    );
-                    page_table[pml4_index as usize] = entry;
+            self.pdpts.push(table);
+            let page_table = self.get_pml4();
+            let mut entry = PageTableEntry::new();
+            entry.set_addr(
+                table.frame.start_address(),
+                PageTableFlags::PRESENT | PageTableFlags::WRITABLE,
+            );
+            page_table[pml4_index as usize] = entry;
 
-                    // Now we need to recursive map the page tables
+            // Now we need to recursive map the page tables
 
-                    return table;
-                }
-            }
-            // TODO: Unallocate, and maybe make it not unrecoverable
-            panic!("Too many PDPTs");
+            return table;
         })
     }
 
     fn try_get_pd(&self, pml4_index: u16, pdpt_index: u16) -> Option<PdTable> {
         self.pds.iter().find_map(|p| {
-            if let Some(p) = p {
-                if p.pml4_index == pml4_index && p.pdpt_index == pdpt_index {
-                    return Some(*p);
-                }
+            if p.pml4_index == pml4_index && p.pdpt_index == pdpt_index {
+                Some(*p)
+            } else {
+                None
             }
-            None
         })
     }
 
@@ -187,31 +183,24 @@ impl BootstrapPageTable {
                 pdpt_index,
             };
 
-            // Find first free entry
-            for i in 0..8 {
-                if self.pds[i].is_none() {
-                    self.pds[i] = Some(table);
-                    let pdpt = self.try_get_pdpt(pml4_index).unwrap();
-                    let pdpt_table = self.get_table(&pdpt);
-                    let mut entry = PageTableEntry::new();
-                    entry.set_frame(table.frame, PageTableFlags::PRESENT | PageTableFlags::WRITABLE);
-                    pdpt_table[pdpt_index as usize] = entry;
+            self.pds.push(table);
+            let pdpt = self.try_get_pdpt(pml4_index).unwrap();
+            let pdpt_table = self.get_table(&pdpt);
+            let mut entry = PageTableEntry::new();
+            entry.set_frame(table.frame, PageTableFlags::PRESENT | PageTableFlags::WRITABLE);
+            pdpt_table[pdpt_index as usize] = entry;
 
-                    return table;
-                }
-            }
-            panic!("Too many PDs");
+            return table;
         })
     }
 
     fn try_get_pt(&self, pml4_index: u16, pdpt_index: u16, pd_index: u16) -> Option<PtTable> {
         self.pt.iter().find_map(|p| {
-            if let Some(p) = p {
-                if p.pml4_index == pml4_index && p.pdpt_index == pdpt_index && p.pd_index == pd_index {
-                    return Some(*p);
-                }
+            if p.pml4_index == pml4_index && p.pdpt_index == pdpt_index && p.pd_index == pd_index {
+                return Some(*p);
+            } else {
+                None
             }
-            None
         })
     }
 
@@ -234,18 +223,13 @@ impl BootstrapPageTable {
                 pd_index,
             };
 
-            for i in 0..8 {
-                if self.pt[i].is_none() {
-                    self.pt[i] = Some(table);
-                    let pd = self.try_get_pd(pml4_index, pdpt_index).unwrap();
-                    let pd_table = self.get_table(&pd);
-                    let mut entry = PageTableEntry::new();
-                    entry.set_frame(table.frame, PageTableFlags::PRESENT | PageTableFlags::WRITABLE);
-                    pd_table[pd_index as usize] = entry;
-                    return table;
-                }
-            }
-            panic!("Too many PTs");
+            self.pt.push(table);
+            let pd = self.try_get_pd(pml4_index, pdpt_index).unwrap();
+            let pd_table = self.get_table(&pd);
+            let mut entry = PageTableEntry::new();
+            entry.set_frame(table.frame, PageTableFlags::PRESENT | PageTableFlags::WRITABLE);
+            pd_table[pd_index as usize] = entry;
+            return table;
         })
     }
 
@@ -278,13 +262,13 @@ impl BootstrapPageTable {
     /// This function should never be called if the page table is still in use (entire duration of
     /// the kernel).
     pub unsafe fn deinit(&mut self, frame_allocator: &mut BasicFrameAllocator) {
-        for pdpt in self.pdpts.iter_mut().flatten() {
+        for pdpt in self.pdpts.iter_mut() {
             unsafe { frame_allocator.deallocate_frame(pdpt.frame) };
         }
-        for pd in self.pds.iter_mut().flatten() {
+        for pd in self.pds.iter_mut() {
             unsafe { frame_allocator.deallocate_frame(pd.frame) };
         }
-        for pt in self.pt.iter_mut().flatten() {
+        for pt in self.pt.iter_mut() {
             unsafe { frame_allocator.deallocate_frame(pt.frame) };
         }
     }

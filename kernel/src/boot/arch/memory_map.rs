@@ -74,6 +74,7 @@ impl MemoryMapEntry {
 }
 
 pub struct FrameBasedAllocator {
+    // TODO: Make this a bump allocator or something
     heap: LockedHeap,
 }
 

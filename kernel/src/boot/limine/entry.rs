@@ -20,7 +20,10 @@ use crate::{
         },
     },
     boot::{
-        arch::x86_64::{frame_allocator::BasicFrameAllocator, page_table::BootstrapPageTable},
+        arch::{
+            memory_map::FrameBasedAllocator,
+            x86_64::{frame_allocator::BasicFrameAllocator, page_table::BootstrapPageTable},
+        },
         drivers::{framebuffer::FramebufferWriter, serial::SerialWriter},
         info::boot_info_mut,
     },
@@ -165,16 +168,49 @@ fn populate_boot_info() {
     boot_info.rsdp_addr = PhysAddr::new(rsdp.address);
 }
 
+/// Calculates the number of pages needed for the page table
+/// when mapping the given number of pages
+fn calculate_pages_needed(pages: usize) -> usize {
+    let pds = pages / (4096 * 4096) + 1;
+    let pts = (pages % (4096 * 4096)).div_ceil(4096);
+    // 1 for the PDPT table
+    pds + pts + 1
+}
+
 /// Allocates the pages for the kernel.
 /// This creates the frame allocator, page table, and allocates pages
 fn allocate_pages() -> ! {
     let boot_info = unsafe { boot_info_mut() };
     let (mm_start, mm_len) = boot_info.memory_map.mapped_range();
     let mut frame_allocator = BasicFrameAllocator::new(&mut boot_info.memory_map);
-    let mut page_table = BootstrapPageTable::new(boot_info.hhdm_offset, &mut frame_allocator);
+    print!(boot_info, "[Boot] calculating pages to allocate for page table\n");
+    let kernel_size = get_kernel_size();
+    let mut pages_to_allocate = 0;
+    pages_to_allocate += calculate_pages_needed(kernel_size.0 / Size4KiB::SIZE as usize);
+    pages_to_allocate += calculate_pages_needed(kernel_size.1 / Size4KiB::SIZE as usize);
+    let stack_frames = requests::KERNEL_STACK_SIZE / Size4KiB::SIZE as usize;
+    pages_to_allocate += calculate_pages_needed(stack_frames);
+    const HEAP_SIZE: u64 = 512 * 1024;
+    let heap_frames = HEAP_SIZE / Size4KiB::SIZE;
+    pages_to_allocate += calculate_pages_needed(heap_frames as usize);
+    let mmap_frames = mm_len.div_ceil(Size4KiB::SIZE);
+    pages_to_allocate += calculate_pages_needed(mmap_frames as usize);
+    if let Some(framebuffer) = boot_info.framebuffer.as_ref() {
+        pages_to_allocate += calculate_pages_needed(framebuffer.fb_size().div_ceil(Size4KiB::SIZE as usize));
+    }
+    print!(boot_info, "[Boot] allocating {} pages\n", pages_to_allocate);
+
+    // FIXME: In the future we can split this between many regions, since they don't need to be contiguous
+    let frame = frame_allocator.allocate_mapped_contiguous(pages_to_allocate).unwrap();
+    let allocator = unsafe {
+        FrameBasedAllocator::new(
+            VirtAddr::new(frame.start_address().as_u64() + boot_info.hhdm_offset),
+            pages_to_allocate * Size4KiB::SIZE as usize,
+        )
+    };
+    let mut page_table = BootstrapPageTable::new(boot_info.hhdm_offset, &mut frame_allocator, &allocator);
 
     let start_phys = boot_info.kernel_start_phys;
-    let kernel_size = get_kernel_size();
     print!(
         boot_info,
         "[Boot] kernel size: {:#x} + {:#x} = {:#x}\n",
@@ -205,7 +241,6 @@ fn allocate_pages() -> ! {
     }
 
     let stack_virt = mappings::KERNEL_STACK_START + mappings::KERNEL_STACK_SIZE - requests::KERNEL_STACK_SIZE as u64;
-    let stack_frames = requests::KERNEL_STACK_SIZE / Size4KiB::SIZE as usize;
     for i in 0..stack_frames {
         let offset = i as u64 * Size4KiB::SIZE;
         page_table.map(
@@ -216,8 +251,6 @@ fn allocate_pages() -> ! {
         );
     }
 
-    const HEAP_SIZE: u64 = 512 * 1024;
-    let heap_frames = HEAP_SIZE / Size4KiB::SIZE;
     for i in 0..heap_frames {
         let offset = i * Size4KiB::SIZE;
         page_table.map(
@@ -230,8 +263,7 @@ fn allocate_pages() -> ! {
     boot_info.heap = (mappings::KERNEL_HEAP, HEAP_SIZE);
 
     // Allocate memory map
-    let pages = mm_len.div_ceil(Size4KiB::SIZE);
-    for i in 0..pages {
+    for i in 0..mmap_frames {
         let offset = i * Size4KiB::SIZE;
         page_table.map(
             mm_start + offset,
@@ -295,7 +327,7 @@ fn limine_stage_2() -> ! {
     let rsdp = boot_info.rsdp_addr;
 
     let total_pages = frame_allocator.total_pages();
-    print!(boot_info, "[Boot] pages available for bootstrap: {}\n", total_pages);
+    print!(boot_info, "[Boot] pages available: {}\n", total_pages);
 
     let runtime_info = RuntimeInfo::new(Mutex::new(frame_allocator), Mutex::new(page_table));
 

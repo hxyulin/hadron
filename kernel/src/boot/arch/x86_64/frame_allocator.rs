@@ -44,6 +44,38 @@ impl<'ctx> BasicFrameAllocator<'ctx> {
         }
         None
     }
+
+    /// Allocates a contiguous region of frames
+    pub fn allocate_mapped_contiguous(&mut self, count: usize) -> Option<PhysFrame> {
+        let size = count as u64 * Size4KiB::SIZE;
+        let mut i = 0;
+        while i < self.memory_map.len() {
+            let region = &mut self.memory_map[i];
+
+            // Skip regions above 4GiB
+            if region.base().as_u64() >= 0x0001_0000_0000 {
+                break;
+            }
+
+            if region.ty() == MemoryRegionType::Usable && region.length() >=size {
+                let frame_addr = region.base();
+
+                // Adjust the existing region instead of creating a new one
+                region.base = frame_addr + size;
+                region.length -= size;
+
+                // If region is now empty, mark it as allocated
+                if region.length() == 0 {
+                    region.memory_type = MemoryRegionType::Allocated;
+                }
+
+                return Some(PhysFrame::containing_address(frame_addr));
+            }
+
+            i += 1;
+        }
+        None
+    }
 }
 
 unsafe impl FrameAllocator<x86_64::structures::paging::Size4KiB> for BasicFrameAllocator<'_> {
