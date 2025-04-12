@@ -15,7 +15,7 @@ use crate::{
         mem::{
             frame_allocator::KernelFrameAllocator,
             mappings,
-            memory_map::{MemoryMap, MemoryRegionTag, finish_bootstrap},
+            memory_map::{MemoryMap, MemoryRegionTag},
             page_table::KernelPageTable,
         },
     },
@@ -160,7 +160,7 @@ fn populate_boot_info() {
     print!(boot_info, "[Boot] parsing memory map...\n");
     boot_info
         .memory_map
-        .parse_from_limine(requests::MEMORY_MAP.get_response().unwrap());
+        .parse_from_limine(requests::MEMORY_MAP.get_response().unwrap(), boot_info.hhdm_offset);
     let rsdp = requests::RSDP.get_response().unwrap();
     boot_info.rsdp_addr = PhysAddr::new(rsdp.address);
 }
@@ -169,6 +169,7 @@ fn populate_boot_info() {
 /// This creates the frame allocator, page table, and allocates pages
 fn allocate_pages() -> ! {
     let boot_info = unsafe { boot_info_mut() };
+    let (mm_start, mm_len) = boot_info.memory_map.mapped_range();
     let mut frame_allocator = BasicFrameAllocator::new(&mut boot_info.memory_map);
     let mut page_table = BootstrapPageTable::new(boot_info.hhdm_offset, &mut frame_allocator);
 
@@ -228,6 +229,18 @@ fn allocate_pages() -> ! {
     }
     boot_info.heap = (mappings::KERNEL_HEAP, HEAP_SIZE);
 
+    // Allocate memory map
+    let pages = mm_len.div_ceil(Size4KiB::SIZE);
+    for i in 0..pages {
+        let offset = i * Size4KiB::SIZE;
+        page_table.map(
+            mm_start + offset,
+            PhysFrame::from_start_address(PhysAddr::new(mm_start.as_u64() - boot_info.hhdm_offset)).unwrap(),
+            PageTableFlags::PRESENT | PageTableFlags::WRITABLE | PageTableFlags::NO_EXECUTE,
+            &mut frame_allocator,
+        )
+    }
+
     // Map framebuffer
     if let Some(framebuffer) = boot_info.framebuffer.as_mut() {
         let fb_virt = VirtAddr::new(framebuffer.fb_addr() as u64);
@@ -270,12 +283,14 @@ fn limine_stage_2() -> ! {
     init_heap();
 
     let boot_info = unsafe { boot_info_mut() };
-    print!(boot_info, "[Boot] constructing memory map...\n");
-    let memory_map = MemoryMap::from_bootstrap(&boot_info.memory_map);
-    print!(boot_info, "[Boot] constructing frame allocator...\n");
-    let frame_allocator = KernelFrameAllocator::new(memory_map);
     print!(boot_info, "[Boot] constructing page tables...\n");
-    let page_table = KernelPageTable::new();
+    let mut page_table = KernelPageTable::new();
+    print!(boot_info, "[Boot] constructing memory map...\n");
+    let memory_map = MemoryMap::from_bootstrap(&mut boot_info.memory_map, &mut page_table);
+    print!(boot_info, "[Boot] constructing frame allocator...\n");
+    let mut frame_allocator = KernelFrameAllocator::new(memory_map);
+    log::debug!("Reclaiming bootloader memory");
+    frame_allocator.free_special_region(MemoryRegionTag::BootloaderReclaimable);
 
     let rsdp = boot_info.rsdp_addr;
 
@@ -304,15 +319,6 @@ fn limine_stage_2() -> ! {
     }
     log::set_logger(&LOGGER).unwrap();
     log::set_max_level(log::LevelFilter::Trace);
-
-    // Now we can allocate the rest of the memory
-    log::debug!("Allocating memory for the kernel heap");
-    finish_bootstrap();
-    log::debug!("Reclaiming bootloader memory");
-    {
-        let mut frame_allocator = kernel_info().frame_allocator.lock();
-        frame_allocator.free_special_region(MemoryRegionTag::BootloaderReclaimable);
-    }
 
     log::debug!("Jumping to kernel main");
     jump_to_kernel_main(KernelParams { rsdp });

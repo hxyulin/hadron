@@ -1,6 +1,6 @@
 use core::ops::DerefMut;
 
-use x86_64::structures::paging::RecursivePageTable;
+use x86_64::structures::paging::{FrameAllocator, RecursivePageTable, Size4KiB};
 use x86_64::{
     VirtAddr,
     structures::paging::{Mapper, Page, PageTable, PageTableFlags, PhysFrame},
@@ -29,7 +29,17 @@ impl KernelPageTable {
     /// can cause UB.
     pub unsafe fn map(&mut self, page: Page, frame: PhysFrame, flags: PageTableFlags) {
         let mut frame_alloc = kernel_info().frame_allocator.lock();
-        unsafe { self.table.map_to(page, frame, flags, frame_alloc.deref_mut()) }
+        unsafe { self.map_with_allocator(page, frame, flags, frame_alloc.deref_mut()) };
+    }
+
+    pub unsafe fn map_with_allocator(
+        &mut self,
+        page: Page,
+        frame: PhysFrame,
+        flags: PageTableFlags,
+        frame_alloc: &mut impl FrameAllocator<Size4KiB>,
+    ) {
+        unsafe { self.table.map_to(page, frame, flags, frame_alloc) }
             .unwrap()
             .flush();
     }

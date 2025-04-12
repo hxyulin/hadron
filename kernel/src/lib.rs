@@ -6,7 +6,7 @@
 #![reexport_test_harness_main = "test_main"]
 #![allow(unexpected_cfgs, dead_code, clippy::new_without_default)]
 
-use base::{arch::acpi, mem::alloc::KernelAllocator};
+use base::{arch::acpi, mem::allocator::KernelAllocator};
 
 pub mod base;
 pub mod boot;

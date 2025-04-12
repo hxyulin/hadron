@@ -17,7 +17,7 @@ pub struct MemoryMapEntry {
 
 /// The type of a memory map entry.
 #[repr(u64)]
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum MemoryMapEntryType {
     /// A usable memory region.
     Usable = 0,
@@ -39,6 +39,7 @@ pub enum MemoryMapEntryType {
 }
 
 /// An iterator over the memory map.
+#[derive(Clone)]
 pub struct MemoryMapIter<'a> {
     memory_map: &'a [NonNull<MemoryMapEntry>],
     index: usize,
@@ -65,7 +66,7 @@ impl<'a> MemoryMapIter<'a> {
 }
 
 impl<'a> Iterator for MemoryMapIter<'a> {
-    type Item = MemoryMapEntry;
+    type Item = &'a MemoryMapEntry;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.index >= self.memory_map.len() {
@@ -73,6 +74,6 @@ impl<'a> Iterator for MemoryMapIter<'a> {
         }
         self.index += 1;
         // SAFETY: The memory map pointer is valid because it is a pointer to a memory map entry.
-        Some(unsafe { self.memory_map[self.index - 1].read_volatile() })
+        Some(unsafe { self.memory_map[self.index - 1].as_ref() })
     }
 }

@@ -13,11 +13,12 @@ impl KernelFrameAllocator {
     }
 
     pub fn free_special_region(&mut self, tag: MemoryRegionTag) {
+        let allocator = self.memory_map.alloc.clone();
         self.memory_map.special.retain(|entry| {
             if entry.tag == tag {
                 self.memory_map
                     .entries
-                    .push(MemoryRegion::from_base_and_length(entry.base, entry.length));
+                    .push(MemoryRegion::from_base_and_length(entry.base, entry.length, allocator.clone()));
                 false
             } else {
                 true

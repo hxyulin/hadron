@@ -1,4 +1,7 @@
-use x86_64::PhysAddr;
+use core::ops::{Index, IndexMut};
+
+use limine::memory_map::{MemoryMapEntryType, MemoryMapIter};
+use x86_64::{structures::paging::{PageSize, Size4KiB}, PhysAddr, VirtAddr};
 
 use crate::boot::arch::memory_map::{BootstrapMemoryMap, MemoryMapEntry, MemoryRegionType};
 
@@ -28,15 +31,66 @@ impl From<&limine::memory_map::MemoryMapEntry> for MemoryMapEntry {
 }
 
 impl BootstrapMemoryMap {
-    pub fn parse_from_limine(&mut self, memory_map: &limine::response::MemoryMapResponse) {
-        let entries = memory_map.entries();
-        let size = entries.len().min(Self::SIZE);
-        self.size = size as u64;
-        for (i, entry) in entries.enumerate() {
-            if i >= size {
-                break;
+    pub fn parse_from_limine(&mut self, memory_map: &limine::response::MemoryMapResponse, hhdm_offset: u64) {
+        self.init(memory_map.entries(), hhdm_offset);
+    }
+
+    /// Create a new memory map from a list of entries.
+    ///
+    /// This function does several things:
+    /// 1. It finds a HHDM mapped region, which is long enough to hold the entire memory map.
+    /// 2. It creates a frame based allocator with that frame.
+    /// 3. It creates a vector of the memory map entries using the allocator
+    /// 4. It marks that frame as used int he memory map.
+    pub fn init(&mut self, limine_entries: MemoryMapIter, hhdm_offset: u64) {
+        let required_size = (size_of::<MemoryMapEntry>() * limine_entries.len()) as u64;
+        // Now we find a hhdm region (phys addr <= 4 GiB) that is long enough to hold the memory map
+        const HHDM_END: u64 = 0x100000000;
+        let region = limine_entries
+            .clone()
+            .find(|e| {
+                e.ty == MemoryMapEntryType::Usable && e.base <= HHDM_END && e.length >= required_size
+            })
+            .expect("memory map: requires a memory region that is long enough to hold the memory map");
+        self.entries.allocator()
+            .init(VirtAddr::new(region.base + hhdm_offset), region.length as usize);
+        self.entries.reserve(limine_entries.len());
+
+        for entry in limine_entries {
+            let mut entry = MemoryMapEntry::from(entry);
+            if entry.base.as_u64() == region.base {
+                // Align the length to a page size, because everything else in the kernel assumes that
+                // the memory map regions are page aligned
+                let length = (region.length + Size4KiB::SIZE - 1) & !(Size4KiB::SIZE - 1);
+                entry.base += length;
+                entry.length -= length;
+                if entry.length == 0 {
+                    continue;
+                }
             }
-            self.entries[i] = MemoryMapEntry::from(&entry);
+            self.entries.push(entry);
         }
+    }
+
+    pub fn len(&self) -> usize {
+        self.entries.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
+}
+
+impl Index<usize> for BootstrapMemoryMap {
+    type Output = MemoryMapEntry;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.entries[index]
+    }
+}
+
+impl IndexMut<usize> for BootstrapMemoryMap {
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        &mut self.entries[index]
     }
 }

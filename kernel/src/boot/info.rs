@@ -30,7 +30,7 @@ impl BootInfo {
             kernel_start_phys: PhysAddr::new(0),
             kernel_start_virt: VirtAddr::new(0),
             rsdp_addr: PhysAddr::new(0),
-            memory_map: BootstrapMemoryMap::default(),
+            memory_map: BootstrapMemoryMap::empty(),
             heap: (VirtAddr::new(0), 0),
             allocator: LockedHeap::empty(),
         }

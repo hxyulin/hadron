@@ -1,31 +1,35 @@
 use crate::{
-    base::info::kernel_info,
-    boot::arch::memory_map::{BootstrapMemoryMap, MemoryRegionType},
+    base::{
+        info::kernel_info,
+        mem::{Arc, mappings},
+    },
+    boot::arch::memory_map::{BootstrapMemoryMap, FrameBasedAllocator, MemoryRegionType},
 };
 use alloc::vec::Vec;
 use x86_64::{
     PhysAddr,
-    structures::paging::{PageSize, Size4KiB},
+    structures::paging::{FrameAllocator, Page, PageSize, PageTableFlags, Size4KiB},
 };
 
-#[derive(Debug, Clone)]
+use super::page_table::KernelPageTable;
+
+#[derive(Debug)]
 pub struct MemoryMap {
-    pub(super) entries: Vec<MemoryRegion>,
+    pub(super) alloc: Arc<FrameBasedAllocator>,
+    pub(super) entries: Vec<MemoryRegion, Arc<FrameBasedAllocator>>,
     pub(super) special: Vec<SpecialMemoryRegion>,
 }
-
-impl MemoryMap {}
 
 #[derive(Debug, Clone)]
 pub struct MemoryRegion {
     pub(super) base: PhysAddr,
-    pub(super) bitmap: Bitmap,
+    pub(super) bitmap: Bitmap<Arc<FrameBasedAllocator>>,
 }
 
 impl MemoryRegion {
-    pub fn from_base_and_length(base: PhysAddr, length: u64) -> Self {
+    pub fn from_base_and_length(base: PhysAddr, length: u64, alloc: Arc<FrameBasedAllocator>) -> Self {
         let pages = length / Size4KiB::SIZE;
-        let bitmap = Bitmap::new(pages as usize);
+        let bitmap = Bitmap::new_in(pages as usize, alloc);
         Self { base, bitmap }
     }
 
@@ -55,12 +59,23 @@ impl MemoryRegion {
 }
 
 #[derive(Clone)]
-pub struct Bitmap(Vec<u64>, usize);
+pub struct Bitmap<A: alloc::alloc::Allocator = alloc::alloc::Global>(Vec<u64, A>, usize);
 
-impl Bitmap {
+impl Bitmap<alloc::alloc::Global> {
     pub fn new(size: usize) -> Self {
+        Self::new_in(size, alloc::alloc::Global)
+    }
+}
+
+impl<A> Bitmap<A>
+    where A: alloc::alloc::Allocator
+{
+    pub fn new_in(size: usize, alloc: A) -> Self {
         let len = size.div_ceil(64);
-        Self(alloc::vec![0; len], size)
+        let mut data = Vec::new_in(alloc);
+        data.reserve_exact(len);
+        data.resize(len, 0);
+        Self(data, size)
     }
 
     pub fn size(&self) -> usize {
@@ -113,7 +128,9 @@ impl Bitmap {
     }
 }
 
-impl core::fmt::Debug for Bitmap {
+impl<A> core::fmt::Debug for Bitmap<A>
+    where A: alloc::alloc::Allocator
+{
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_tuple("Bitmap")
             .field(&format_args!("{} bits", self.0.len() * 64))
@@ -152,25 +169,6 @@ impl MemoryRegionTag {
     }
 }
 
-pub struct MemoryMapBootstrapInfo {
-    /// Index of all the memory regions that were boostrapped
-    used: Vec<usize>,
-    /// If the last region was partially allocated, this will contain the size of the last region
-    /// that was used
-    size: Option<usize>,
-    total_pages: usize,
-}
-
-impl MemoryMapBootstrapInfo {
-    fn new() -> Self {
-        Self {
-            used: Vec::new(),
-            size: None,
-            total_pages: 0,
-        }
-    }
-}
-
 impl MemoryMap {
     /// The maximum number of pages that can be allocated for bootstrapping
     /// This is a safety measure to prevent the kernel from running out of memory
@@ -186,128 +184,45 @@ impl MemoryMap {
     ///
     /// This will allocate at most [`Self::MAX_BOOTSTRAP_PAGES`] pages for the kernel heap,
     /// storing the rest of the usable memory in the `special` field
-    pub fn from_bootstrap(memory_map: &BootstrapMemoryMap) -> Self {
-        let mut entries = Vec::new();
-        let mut special = Vec::new();
-        let mut used_pages = 0;
+    pub fn from_bootstrap(memory_map: &mut BootstrapMemoryMap, page_table: &mut KernelPageTable) -> Self {
+        use crate::boot::arch::x86_64::frame_allocator::BasicFrameAllocator;
 
-        for entry in memory_map.iter() {
-            assert!(special.len() < Self::MAX_SPECIAL_REGIONS, "Too many special regions");
-            if entry.length == 0 {
-                continue;
-            }
-            if entry.ty() == MemoryRegionType::Usable {
-                let pages = (entry.length / Size4KiB::SIZE) as usize;
-                if used_pages >= Self::MAX_BOOTSTRAP_PAGES {
-                    special.push(SpecialMemoryRegion {
-                        base: entry.base,
-                        length: entry.length,
-                        tag: MemoryRegionTag::Unallocated,
-                    });
-                    continue;
-                }
-                if used_pages + pages > Self::MAX_BOOTSTRAP_PAGES {
-                    let used_size = (Self::MAX_BOOTSTRAP_PAGES - used_pages) as u64 * Size4KiB::SIZE;
-                    used_pages = Self::MAX_BOOTSTRAP_PAGES;
-                    entries.push(MemoryRegion::from_base_and_length(entry.base(), used_size));
-                    special.push(SpecialMemoryRegion {
-                        base: entry.base + used_size,
-                        length: entry.length - used_size,
-                        tag: MemoryRegionTag::Unallocated,
-                    });
-                    continue;
-                }
-
-                entries.push(MemoryRegion::from_base_and_length(entry.base(), entry.length()));
-            } else if let Some(tag) = MemoryRegionTag::from_type(entry.ty()) {
-                special.push(SpecialMemoryRegion {
-                    base: entry.base(),
-                    length: entry.length(),
-                    tag,
-                });
-            }
+        // We need to calculate how much memory we need for the entire memory map
+        let mut required_size = 0;
+        for region in memory_map.iter() {
+            required_size += size_of::<MemoryRegion>() as u64;
+            let bitmap_size = region.length.div_ceil(32768);
+            // We align it to 64 bytes to be conservative
+            required_size += (bitmap_size + 63) & !63;
         }
-        entries.shrink_to_fit();
-        special.shrink_to_fit();
 
-        Self { entries, special }
-    }
-}
-
-fn allocate(to_allocate: u64) {
-    let frame_allocator = &kernel_info().frame_allocator;
-    let mut idx = 0;
-    let mut allocated = 0;
-    while allocated < to_allocate {
-        let entry = {
-            let frame_allocator = frame_allocator.lock();
-            let memory_map = frame_allocator.memory_map();
-            if idx >= memory_map.special.len() {
-                // We have allocated all the memory
-                break;
-            }
-            if memory_map.special[idx].tag != MemoryRegionTag::Unallocated {
-                idx += 1;
-                continue;
-            }
-            memory_map.special[idx].clone()
-        };
-        let size = entry.length;
-        let to_allocate = to_allocate - allocated;
-        if size <= to_allocate {
-            // We just pop the region
-            let region = MemoryRegion::from_base_and_length(entry.base, entry.length);
-            let mut frame_allocator = frame_allocator.lock();
-            let memory_map = unsafe { frame_allocator.memory_map_mut() };
-            memory_map.special.remove(idx);
-            memory_map.entries.push(region);
-            allocated += size;
-        } else {
-            let region = MemoryRegion::from_base_and_length(entry.base, to_allocate);
-            let mut frame_allocator = frame_allocator.lock();
-            let memory_map = unsafe { frame_allocator.memory_map_mut() };
-            memory_map.entries.push(region);
-            memory_map.special[idx].length -= to_allocate;
-            memory_map.special[idx].base += to_allocate;
-            break;
+        let mut frame_allocator = BasicFrameAllocator::new(memory_map);
+        let required_frames = required_size.div_ceil(Size4KiB::SIZE);
+        for i in 0..required_frames {
+            let addr = mappings::MEMORY_MAPPINGS + i * Size4KiB::SIZE;
+            unsafe {
+                page_table.map_with_allocator(
+                    Page::from_start_address(addr).unwrap(),
+                    frame_allocator.allocate_frame().unwrap(),
+                    PageTableFlags::PRESENT | PageTableFlags::WRITABLE | PageTableFlags::NO_EXECUTE,
+                    &mut frame_allocator,
+                )
+            };
         }
-    }
-}
 
-/// Finishes the bootstrapping process by allocating the rest of the memory
-/// This is a complicated process, since we need enough memory to allocate the memory map,
-/// which may require us to allocate more memory. It is a recursive process, allocating chunks
-/// until we can allocate the full memory map
-pub fn finish_bootstrap() {
-    let mut required_sizes = Vec::new();
-    let mut required_size: u64 = {
-        let frame_allocator = kernel_info().frame_allocator.lock();
-        frame_allocator
-            .memory_map()
-            .special
-            .iter()
-            .filter_map(|r| {
-                if r.tag == MemoryRegionTag::Unallocated {
-                    Some(r.length)
-                } else {
-                    None
-                }
-            })
-            .sum()
-    };
-    // We need to be able to allocate the memory map, so we assume that we can use at most 50% of the memory
-    let current_size = crate::ALLOCATOR.generic_size() as u64 / 2;
-    log::debug!("Current size: {:#X}", current_size);
-    while required_size > current_size {
-        required_sizes.push(required_size);
-        // FIXME: This is very naive implementation
-        // The size required is 1 byte for every 8 pages = factor of 32768, but we grow by a factor of 2, so we need to divide by 2
-        // IMPORTANT/FIXME: We don't account for the metadata here, which may be a problem for some sizes
-        required_size = required_size.div_ceil(32768 / 2) + 4096;
-    }
+        let alloc = Arc::new(unsafe {
+            FrameBasedAllocator::new(mappings::MEMORY_MAPPINGS, (required_frames * Size4KiB::SIZE) as usize)
+        });
+        let mut entries = Vec::new_in(alloc.clone());
+        entries.reserve_exact(memory_map.len());
+        for entry in memory_map.iter().filter(|entry| entry.ty() == MemoryRegionType::Usable && entry.length() > 0) {
+            entries.push(MemoryRegion::from_base_and_length(entry.base(), entry.length(), alloc.clone()));
+        }
 
-    for size in required_sizes.into_iter().rev() {
-        log::debug!("Allocating {:#X} bytes", size);
-        allocate(size);
+        Self {
+            alloc,
+            entries,
+            special: Vec::new(),
+        }
     }
 }

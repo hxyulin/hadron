@@ -1,4 +1,14 @@
-use x86_64::PhysAddr;
+use core::ptr::NonNull;
+
+use alloc::{
+    alloc::{AllocError, Allocator},
+    vec::Vec,
+};
+use limine::memory_map::MemoryMapEntryType;
+use linked_list_allocator::{Heap, LockedHeap};
+use x86_64::{PhysAddr, VirtAddr};
+
+use crate::base::mem::Arc;
 
 #[repr(u64)]
 #[allow(dead_code)]
@@ -63,47 +73,71 @@ impl MemoryMapEntry {
     }
 }
 
-#[derive(Clone)]
-pub struct BootstrapMemoryMap {
-    pub(crate) size: u64,
-    pub(crate) entries: [MemoryMapEntry; Self::SIZE],
+pub struct FrameBasedAllocator {
+    heap: LockedHeap,
 }
 
-impl BootstrapMemoryMap {
-    pub fn new(entries: &[MemoryMapEntry]) -> Self {
-        let size = entries.len().min(Self::SIZE);
-        let mut memory_map = Self {
-            size: size as u64,
-            entries: [MemoryMapEntry::default(); Self::SIZE],
-        };
-        for (i, entry) in entries.iter().enumerate() {
-            if i >= size {
-                break;
-            }
-            memory_map.entries[i] = *entry;
-        }
-        memory_map
-    }
-}
-
-impl core::fmt::Debug for BootstrapMemoryMap {
+impl core::fmt::Debug for FrameBasedAllocator {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        let mut debug_list = f.debug_list();
-        for (idx, entry) in self.iter().enumerate() {
-            if idx > self.size as usize {
-                break;
-            }
-            debug_list.entry(entry);
-        }
-        debug_list.finish()
+        f.debug_struct("FrameBasedAllocator").finish()
     }
 }
 
-impl BootstrapMemoryMap {
-    pub const fn default() -> Self {
+impl FrameBasedAllocator {
+    pub const fn empty() -> Self {
         Self {
-            size: 0,
-            entries: [MemoryMapEntry::default(); Self::SIZE],
+            heap: LockedHeap::empty(),
+        }
+    }
+
+    pub unsafe fn new(base: VirtAddr, length: usize) -> Self {
+        Self {
+            heap: unsafe { LockedHeap::new(base.as_mut_ptr(), length) },
+        }
+    }
+
+    pub fn init(&self, base: VirtAddr, length: usize) {
+        unsafe { self.heap.lock().init(base.as_mut_ptr(), length) };
+    }
+
+    pub fn mapped_range(&self) -> (VirtAddr, u64) {
+        let heap = self.heap.lock();
+        (VirtAddr::new(heap.bottom() as u64), heap.size() as u64)
+    }
+}
+
+unsafe impl Allocator for Arc<FrameBasedAllocator> {
+    fn allocate(&self, layout: core::alloc::Layout) -> Result<core::ptr::NonNull<[u8]>, alloc::alloc::AllocError> {
+        (**self).allocate(layout)
+    }
+
+    unsafe fn deallocate(&self, ptr: core::ptr::NonNull<u8>, layout: core::alloc::Layout) {
+        unsafe { (**self).deallocate(ptr, layout) }
+    }
+}
+
+unsafe impl Allocator for FrameBasedAllocator {
+    fn allocate(&self, layout: core::alloc::Layout) -> Result<core::ptr::NonNull<[u8]>, alloc::alloc::AllocError> {
+        match self.heap.lock().allocate_first_fit(layout) {
+            Ok(ptr) => Ok(NonNull::slice_from_raw_parts(ptr, layout.size())),
+            Err(_) => Err(AllocError),
+        }
+    }
+
+    unsafe fn deallocate(&self, ptr: core::ptr::NonNull<u8>, layout: core::alloc::Layout) {
+        unsafe { self.heap.lock().deallocate(ptr.cast(), layout) }
+    }
+}
+
+#[derive(Debug)]
+pub struct BootstrapMemoryMap {
+    pub entries: Vec<MemoryMapEntry, FrameBasedAllocator>,
+}
+
+impl BootstrapMemoryMap {
+    pub const fn empty() -> Self {
+        Self {
+            entries: Vec::new_in(FrameBasedAllocator::empty()),
         }
     }
 
@@ -114,62 +148,19 @@ impl BootstrapMemoryMap {
             }
         }
     }
-}
-
-impl BootstrapMemoryMap {
-    pub const SIZE: usize = 128;
-
-    pub fn iter(&self) -> MemoryMapIter {
-        MemoryMapIter {
-            end: unsafe { self.entries.as_ptr().add(Self::SIZE) },
-            current: self.entries.as_ptr(),
-            phantom: core::marker::PhantomData,
-        }
+    pub fn iter(&self) -> core::slice::Iter<'_, MemoryMapEntry> {
+        self.entries.iter()
     }
 
-    pub fn iter_mut(&mut self) -> MemoryMapIterMut {
-        MemoryMapIterMut {
-            end: unsafe { self.entries.as_mut_ptr().add(Self::SIZE) },
-            current: self.entries.as_mut_ptr(),
-            phantom: core::marker::PhantomData,
-        }
+    pub fn iter_mut(&mut self) -> core::slice::IterMut<'_, MemoryMapEntry> {
+        self.entries.iter_mut()
     }
-}
 
-pub struct MemoryMapIter<'a> {
-    end: *const MemoryMapEntry,
-    current: *const MemoryMapEntry,
-    phantom: core::marker::PhantomData<&'a BootstrapMemoryMap>,
-}
-
-pub struct MemoryMapIterMut<'a> {
-    end: *mut MemoryMapEntry,
-    current: *mut MemoryMapEntry,
-    phantom: core::marker::PhantomData<&'a mut BootstrapMemoryMap>,
-}
-
-impl<'a> Iterator for MemoryMapIter<'a> {
-    type Item = &'a MemoryMapEntry;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.current >= self.end {
-            return None;
-        }
-        let entry = unsafe { self.current.as_ref().unwrap() };
-        self.current = unsafe { self.current.add(1) };
-        Some(entry)
+    pub fn push(&mut self, entry: MemoryMapEntry) {
+        self.entries.push(entry);
     }
-}
 
-impl<'a> Iterator for MemoryMapIterMut<'a> {
-    type Item = &'a mut MemoryMapEntry;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.current >= self.end {
-            return None;
-        }
-        let entry = unsafe { self.current.as_mut().unwrap() };
-        self.current = unsafe { self.current.add(1) };
-        Some(entry)
+    pub fn mapped_range(&self) -> (VirtAddr, u64) {
+        self.entries.allocator().mapped_range()
     }
 }
