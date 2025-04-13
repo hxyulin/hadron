@@ -37,7 +37,7 @@ extern "x86-interrupt" fn page_fault_handler(stack_frame: InterruptStackFrame, e
     log::error!("Page fault at {:?}, error code: {:?}", fault_addr, error_code);
     log::error!("Stack trace: {:#x?}", stack_frame);
     dump_machine_state(&stack_frame);
-    panic!("Page fault");
+    panic!("Page fault at {:?}, error code: {:?}", fault_addr, error_code);
 }
 
 extern "x86-interrupt" fn double_fault_handler(stack_frame: InterruptStackFrame, error_code: u64) -> ! {

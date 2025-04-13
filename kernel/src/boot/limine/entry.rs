@@ -9,6 +9,7 @@ use x86_64::{
 
 use super::requests;
 use crate::{
+    ALLOCATOR, KernelParams,
     base::{
         info::{KernelInfo, RuntimeInfo},
         mem::{
@@ -17,17 +18,23 @@ use crate::{
             memory_map::{MemoryMap, MemoryRegionTag},
             page_table::KernelPageTable,
         },
-    }, boot::{
+    },
+    boot::{
         arch::{
             memory_map::FrameBasedAllocator,
             x86_64::{frame_allocator::BasicFrameAllocator, page_table::BootstrapPageTable},
         },
         drivers::{framebuffer::FramebufferWriter, serial::SerialWriter},
         info::boot_info_mut,
-    }, devices::{
+    },
+    devices::{
         fb::{Framebuffer, FramebufferInfo, PixelFormat},
         tty::{fb::VirtFbTtyDevice, serial::SerialDevice},
-    }, util::{logger::{LOGGER, WRITER}, machine_state::MachineState}, KernelParams, ALLOCATOR
+    },
+    util::{
+        logger::{LOGGER, WRITER},
+        machine_state::MachineState,
+    },
 };
 
 macro_rules! print {
@@ -58,13 +65,11 @@ pub fn limine_entry() -> ! {
 }
 
 pub fn limine_print_panic(info: &core::panic::PanicInfo) {
-    static mut BUFFER: [u8; 4096] = [0; 4096];
     // SAFETY: If we panic, we are in an unsafe context anyways,
     // we try to notify the user about the panic
-    let boot_info = unsafe { boot_info_mut() };
     let machine_state = MachineState::here();
-    print!(boot_info, "{}", machine_state);
 
+    let boot_info = unsafe { boot_info_mut() };
     print!(boot_info, "BOOT KERNEL PANIC: {}\n", info.message());
     if let Some(location) = info.location() {
         print!(
@@ -84,6 +89,8 @@ pub fn limine_print_panic(info: &core::panic::PanicInfo) {
     } else {
         print!(boot_info, "PANIC: No allocator available for backtrace\n");
     }
+
+    print!(boot_info, "{}", machine_state);
 }
 
 /// Initializes the core of the kernel.
@@ -93,6 +100,7 @@ pub fn limine_print_panic(info: &core::panic::PanicInfo) {
 /// - Initializing the GDT
 /// - Initializing the IDT
 fn init_core() {
+    x86_64::instructions::interrupts::disable();
     let boot_info = unsafe { boot_info_mut() };
     // We initialize the seiral port so it is available for printing
     boot_info.serial = {
@@ -136,6 +144,7 @@ fn init_core() {
     crate::base::arch::x86_64::gdt::init();
     print!(boot_info, "[Boot] initializing IDT...\n");
     crate::base::arch::x86_64::idt::init();
+    x86_64::instructions::interrupts::int3();
 }
 
 /// Populates the boot info.
@@ -149,6 +158,7 @@ fn populate_boot_info() {
     let boot_info = unsafe { boot_info_mut() };
     let hhdm = requests::HHDM.get_response().unwrap();
     boot_info.hhdm_offset = hhdm.offset;
+    print!(boot_info, "[Boot] hhdm_offset: {:#x}\n", boot_info.hhdm_offset);
     let kernel_addr = requests::EXECUTABLE_ADDRESS.get_response().unwrap();
     boot_info.kernel_start_phys = PhysAddr::new(kernel_addr.physical_address);
     boot_info.kernel_start_virt = VirtAddr::new(kernel_addr.virtual_address);
@@ -219,27 +229,39 @@ fn allocate_pages() -> ! {
         kernel_size.1,
         kernel_size.0 + kernel_size.1
     );
+    assert!(
+        (boot_info.kernel_start_virt + kernel_size.0 as u64 + kernel_size.1 as u64)
+            < mappings::KERNEL_TEXT_END,
+        "Kernel text section is too large"
+    );
+
+    print!(boot_info, "[Boot] mapping kernel text section...\n");
+
     // Map text section with execute permissions
     for i in 0..kernel_size.0 as u64 / Size4KiB::SIZE {
         let offset = i * Size4KiB::SIZE;
         page_table.map(
-            mappings::KERNEL_TEXT + offset,
+            boot_info.kernel_start_virt + offset,
             PhysFrame::from_start_address(start_phys + offset).unwrap(),
             PageTableFlags::PRESENT,
             &mut frame_allocator,
         );
     }
 
+    print!(boot_info, "[Boot] mapping kernel data section...\n");
+
     // Map data section with writable permissions but no execute permissions
     for i in 0..kernel_size.1 as u64 / Size4KiB::SIZE {
         let offset = i * Size4KiB::SIZE + kernel_size.0 as u64;
         page_table.map(
-            mappings::KERNEL_TEXT + offset,
+            boot_info.kernel_start_virt + offset,
             PhysFrame::from_start_address(start_phys + offset).unwrap(),
-            PageTableFlags::PRESENT | PageTableFlags::WRITABLE | PageTableFlags::NO_EXECUTE,
+            PageTableFlags::PRESENT | PageTableFlags::WRITABLE,
             &mut frame_allocator,
         );
     }
+
+    print!(boot_info, "[Boot] mapping kernel stack...\n");
 
     let stack_virt = mappings::KERNEL_STACK_START + mappings::KERNEL_STACK_SIZE - requests::KERNEL_STACK_SIZE as u64;
     for i in 0..stack_frames {
@@ -252,6 +274,8 @@ fn allocate_pages() -> ! {
         );
     }
 
+    print!(boot_info, "[Boot] mapping kernel heap...\n");
+
     for i in 0..heap_frames {
         let offset = i * Size4KiB::SIZE;
         page_table.map(
@@ -262,6 +286,8 @@ fn allocate_pages() -> ! {
         );
     }
     boot_info.heap = (mappings::KERNEL_HEAP, HEAP_SIZE);
+
+    print!(boot_info, "[Boot] mapping memory map...\n");
 
     // Allocate memory map
     for i in 0..mmap_frames {
