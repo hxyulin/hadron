@@ -16,7 +16,7 @@ pub enum IoApicDeliveryMode {
 
 impl IoApicDeliveryMode {
     pub fn from_flags(flags: u16) -> Self {
-        Self::try_from(((flags >> 0) & 0b111) as u8).unwrap()
+        Self::try_from((flags & 0b111) as u8).unwrap()
     }
 }
 
@@ -109,7 +109,7 @@ impl IoApicEntry {
             IoApicEntryDestination::Cpu(cpu) => Self {
                 irq,
                 flags: 0,
-                destination: cpu as u8,
+                destination: cpu,
                 ..Self::default()
             },
         }
@@ -121,7 +121,7 @@ impl IoApicEntry {
 
     pub fn set_delivery_mode(&mut self, mode: IoApicDeliveryMode) {
         self.flags &= !0b111;
-        self.flags |= (mode as u16) << 0;
+        self.flags |= mode as u16;
     }
 
     pub fn set_destination_mode(&mut self, mode: IoApicDestinationMode) {
@@ -203,7 +203,7 @@ impl IoApic {
             win: OffsetMmio::default(),
         };
 
-        io_apic.size = io_apic.read_reg(Self::IDX_REG_VER) as u32 & 0xFF;
+        io_apic.size = io_apic.read_reg(Self::IDX_REG_VER) & 0xFF;
 
         io_apic
     }

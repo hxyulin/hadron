@@ -1,7 +1,10 @@
 use core::ops::{Index, IndexMut};
 
 use limine::memory_map::{MemoryMapEntryType, MemoryMapIter};
-use x86_64::{structures::paging::{PageSize, Size4KiB}, PhysAddr, VirtAddr};
+use x86_64::{
+    PhysAddr, VirtAddr,
+    structures::paging::{PageSize, Size4KiB},
+};
 
 use crate::boot::arch::memory_map::{BootstrapMemoryMap, MemoryMapEntry, MemoryRegionType};
 
@@ -43,16 +46,18 @@ impl BootstrapMemoryMap {
     /// 3. It creates a vector of the memory map entries using the allocator
     /// 4. It marks that frame as used int he memory map.
     pub fn init(&mut self, limine_entries: MemoryMapIter, hhdm_offset: u64) {
-        let required_size = (size_of::<MemoryMapEntry>() * limine_entries.len()) as u64;
+        /// The number of entries we need to reserve for the memory map, for deallocation
+        /// We copletely control this in the kernel, so this can be a constant
+        const RESERVED_ENTRIES: usize = 8;
+        let required_size = (size_of::<MemoryMapEntry>() * (limine_entries.len() + RESERVED_ENTRIES)) as u64;
         // Now we find a hhdm region (phys addr <= 4 GiB) that is long enough to hold the memory map
         const HHDM_END: u64 = 0x100000000;
         let region = limine_entries
             .clone()
-            .find(|e| {
-                e.ty == MemoryMapEntryType::Usable && e.base <= HHDM_END && e.length >= required_size
-            })
+            .find(|e| e.ty == MemoryMapEntryType::Usable && e.base <= HHDM_END && e.length >= required_size)
             .expect("memory map: requires a memory region that is long enough to hold the memory map");
-        self.entries.allocator()
+        self.entries
+            .allocator()
             .init(VirtAddr::new(region.base + hhdm_offset), region.length as usize);
         self.entries.reserve(limine_entries.len());
 
@@ -70,14 +75,6 @@ impl BootstrapMemoryMap {
             }
             self.entries.push(entry);
         }
-    }
-
-    pub fn len(&self) -> usize {
-        self.entries.len()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.entries.is_empty()
     }
 }
 

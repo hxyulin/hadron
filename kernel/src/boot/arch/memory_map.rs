@@ -9,6 +9,8 @@ use x86_64::{PhysAddr, VirtAddr};
 
 use crate::base::mem::Arc;
 
+use super::x86_64::frame_allocator::BasicFrameAllocator;
+
 #[repr(u64)]
 #[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -104,6 +106,11 @@ impl FrameBasedAllocator {
         let heap = self.heap.lock();
         (VirtAddr::new(heap.bottom() as u64), heap.size() as u64)
     }
+
+    pub fn deinit(self, dealloc: &mut BasicFrameAllocator, hhdm_offset: u64) {
+        let (base, length) = self.mapped_range();
+        dealloc.deallocate_region(PhysAddr::new((base - hhdm_offset).as_u64()), length);
+    }
 }
 
 unsafe impl Allocator for Arc<FrameBasedAllocator> {
@@ -141,6 +148,19 @@ impl BootstrapMemoryMap {
         }
     }
 
+    pub fn total_size(&self) -> u64 {
+        self.entries
+            .iter()
+            .filter_map(|e| {
+                if e.ty() == MemoryRegionType::Usable {
+                    Some(e.length())
+                } else {
+                    None
+                }
+            })
+            .sum()
+    }
+
     pub fn reclaim_bootloader_memory(&mut self) {
         for region in self.iter_mut() {
             if region.ty() == MemoryRegionType::BootloaderReclaimable {
@@ -156,10 +176,21 @@ impl BootstrapMemoryMap {
         self.entries.iter_mut()
     }
 
-    pub fn push(&mut self, entry: MemoryMapEntry) {
-        self.entries.push(entry);
+    pub fn len(&self) -> usize {
+        self.entries.len()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
+
+    pub fn push(&mut self, entry: MemoryMapEntry) {
+        self.entries
+            .push_within_capacity(entry)
+            .expect("memory map: ran out of memory");
+    }
+
+    /// Returns the mapped range of the memory map
     pub fn mapped_range(&self) -> (VirtAddr, u64) {
         self.entries.allocator().mapped_range()
     }

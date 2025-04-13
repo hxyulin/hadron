@@ -9,21 +9,33 @@ use x86_64::{
 use crate::base::info::kernel_info;
 
 #[derive(Debug, Clone)]
-pub struct PCIeConfigSpace {
-    buses: Vec<PCIEBus>,
+pub struct PCIeDeviceInfo {
+    pub addr: PhysAddr,
+    pub vendor_id: u16,
+    pub device_id: u16,
+    pub class: PCIDeviceClass,
+    pub capabilities: PCICapabilities,
+    pub bars: [u32; 6],
 }
 
-impl PCIeConfigSpace {
-    const FRAMES_PER_BUS: usize = 1 * 8 * 32;
-    pub unsafe fn from_mcfg(entry: &acpi::mcfg::McfgEntry) -> Self {
+impl PCIeDeviceInfo {
+    /// Returns the address of the PCIe device
+    ///
+    /// # Safety
+    /// This function is unsafe because the caller must ensure that the
+    /// address in the McfgEntry is valid.
+    pub unsafe fn from_mcfg(entry: &acpi::mcfg::McfgEntry) -> Vec<Self> {
+        let mut devices = Vec::new();
+        const FRAMES_PER_BUS: usize = 8 * 32;
         let bus_count = (entry.bus_number_end - entry.bus_number_start) as usize + 1;
-        let pages_needed = bus_count as u64 * Self::FRAMES_PER_BUS as u64;
+        let pages_needed = bus_count as u64 * FRAMES_PER_BUS as u64;
         let mut buses = Vec::with_capacity(bus_count);
         for i in entry.bus_number_start..entry.bus_number_end {
             buses.push(PCIEBus::new(i));
         }
         log::debug!("PCI: mapping config space ({} pages)", pages_needed);
         {
+            // TODO: We can probably use bigger frames here like 2MiB
             let mut page_table = kernel_info().page_table.lock();
             let mut allocator = kernel_info().frame_allocator.lock();
             for i in 0..pages_needed {
@@ -51,17 +63,14 @@ impl PCIeConfigSpace {
                     if vendor_id == 0xFFFF {
                         continue;
                     }
-                    let device_id = function.read::<u16>(pci_base, PCIEFunctionOffset::DeviceID);
-                    log::debug!(
-                        "PCI: bus {:?}, device {:?}, function {:?}: {:x}:{:x} ({:?}) - {:?}",
-                        bus.bus_number,
-                        device.device,
-                        function.function,
+                    devices.push(PCIeDeviceInfo {
+                        addr: PhysAddr::new(function.get_mmio_addr(pci_base, 0).as_u64()),
                         vendor_id,
-                        device_id,
-                        function.device_class(pci_base),
-                        function.capabilities(pci_base)
-                    );
+                        device_id: function.read(pci_base, PCIEFunctionOffset::DeviceID),
+                        class: function.device_class(pci_base),
+                        capabilities: function.capabilities(pci_base),
+                        bars: function.get_bars(pci_base),
+                    });
                 }
             }
         }
@@ -70,16 +79,13 @@ impl PCIeConfigSpace {
             log::debug!("PCI: unmapping config space");
             // Unmap the PCI config space
             let mut page_table = kernel_info().page_table.lock();
-            let mut allocator = kernel_info().frame_allocator.lock();
             for i in 0..pages_needed {
                 let addr = entry.base_address + i * Size4KiB::SIZE;
-                unsafe {
-                    page_table.unmap(Page::from_start_address(VirtAddr::new(addr)).unwrap());
-                };
+                unsafe { page_table.unmap(Page::from_start_address(VirtAddr::new(addr)).unwrap()) };
             }
         }
 
-        Self { buses }
+        devices
     }
 }
 
@@ -94,9 +100,9 @@ impl PCIEBus {
     }
 
     pub fn devices(&self) -> [PCIEDevice; 32] {
-        let mut devices = [PCIEDevice::new(self.clone(), 0); 32];
-        for i in 1..32 {
-            devices[i].device = i as u8;
+        let mut devices = [PCIEDevice::new(*self, 0); 32];
+        for (i, device) in devices.iter_mut().enumerate() {
+            device.device = i as u8;
         }
         devices
     }
@@ -114,9 +120,9 @@ impl PCIEDevice {
     }
 
     pub fn functions(&self) -> [PCIEFunction; 8] {
-        let mut functions = [PCIEFunction::new(self.clone(), 0); 8];
-        for i in 1..8 {
-            functions[i].function = i as u8;
+        let mut functions = [PCIEFunction::new(*self, 0); 8];
+        for (i, function) in functions.iter_mut().enumerate() {
+            function.function = i as u8;
         }
         functions
     }
@@ -129,8 +135,8 @@ pub enum PCIEFunctionAddressType {
 }
 
 bitflags::bitflags! {
-    #[derive(Debug)]
-    pub struct PCIEFunctionCapabilities: u32 {
+    #[derive(Debug, Clone, Copy)]
+    pub struct PCICapabilities: u32 {
         const PMCAP = 1 << 0;  // Power Management Capability
         const MSICAP = 1 << 1; // MSI Capability
         const MSIXCAP = 1 << 2; // MSI-X Capability
@@ -174,16 +180,14 @@ impl PCIEFunction {
 
     pub fn device_class(&self, base: VirtAddr) -> PCIDeviceClass {
         let class = self.read::<u8>(base, PCIEFunctionOffset::Class);
-        return PCIDeviceClass::from_u8(class);
+        PCIDeviceClass::from_u8(class)
     }
 
-    pub fn capabilities(&self, base: VirtAddr) -> PCIEFunctionCapabilities {
-        let mut capabilities = PCIEFunctionCapabilities::empty();
+    pub fn capabilities(&self, base: VirtAddr) -> PCICapabilities {
+        let mut capabilities = PCICapabilities::empty();
 
-        // Get the Capabilities Pointer (Offset 0x34 in PCI configuration space)
-        let mut current_offset = self.read::<u16>(base, PCIEFunctionOffset::CapabilitiesPointer) as u16;
+        let mut current_offset = self.read::<u16>(base, PCIEFunctionOffset::CapabilitiesPointer);
 
-        // Traverse the capability list
         while current_offset != 0 {
             // Read the Capability ID and the Next Capability Pointer
             let cap_id = unsafe { self.read_internal::<u32>(base, current_offset) & 0xFF };
@@ -191,7 +195,7 @@ impl PCIEFunction {
 
             // Match the capability ID and add the corresponding flag
             // Attempt to convert to a PCIEFunctionCapabilities enum
-            let cap = PCIEFunctionCapabilities::from_bits(cap_id as u32);
+            let cap = PCICapabilities::from_bits(cap_id);
             if let Some(cap) = cap {
                 capabilities |= cap;
             }
@@ -201,6 +205,16 @@ impl PCIEFunction {
         }
 
         capabilities
+    }
+
+    pub fn get_bars(&self, base: VirtAddr) -> [u32; 6] {
+        let mut bars = [0; 6];
+        for i in 0..6 {
+            // SAFETY: The offset is valid because it is within the range of the function
+            let addr = unsafe { self.read_internal::<u32>(base, PCIEFunctionOffset::Bar0 as u16 + i * 4) };
+            bars[i as usize] = addr;
+        }
+        bars
     }
 }
 

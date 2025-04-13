@@ -1,10 +1,11 @@
 //! Hadron Kernel
 #![no_std]
 #![no_main]
-#![feature(custom_test_frameworks, abi_x86_interrupt, allocator_api)]
+#![feature(custom_test_frameworks, abi_x86_interrupt, allocator_api, vec_push_within_capacity)]
 #![test_runner(crate::tests::test_runner)]
 #![reexport_test_harness_main = "test_main"]
 #![allow(unexpected_cfgs, dead_code, clippy::new_without_default)]
+#![feature(unsize, dispatch_from_dyn, coerce_unsized)] // Needed for Arc
 
 use base::{arch::x86_64::acpi, mem::allocator::KernelAllocator};
 
@@ -38,14 +39,29 @@ pub struct KernelParams {
 /// The logger should be set up, and the TTY devices should be added to the logger.
 #[unsafe(no_mangle)]
 extern "Rust" fn kernel_main(params: KernelParams) -> ! {
-    log::debug!("Initializing kernel");
+    log::debug!("initializing kernel");
+
+    // Initialize ACPI info
+    // This give us access to:
+    // - HPET (or PS Timer)
+    // - APICs (Local, IO)
+    // - PCI devices
     acpi::init(params.rsdp);
 
-    x86_64::instructions::interrupts::enable();
+    // Initialize the drivers for the kernel
+    init_drivers();
 
     #[cfg(test)]
     hadron_test::exit_qemu(hadron_test::ExitCode::Success);
-    panic!("Reached end of kernel");
+    panic!("reached end of kernel");
+}
+
+/// Initialize the drivers for the kernel
+///
+/// This involes:
+/// - Finding the drivers for the devices
+fn init_drivers() {
+    log::debug!("initializing drivers");
 }
 
 #[cfg_attr(test, panic_handler)]

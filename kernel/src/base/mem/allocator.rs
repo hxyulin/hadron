@@ -42,16 +42,16 @@ impl KernelAllocator {
     /// Initializes the generic allocator with the given heap.
     ///
     /// # Safety
-    /// This function is unsafe because it can cause UB if the heap is not valid, or aclled more than once.
+    /// This function is unsafe because it can cause UB if the heap is not valid, or called more than once.
     pub unsafe fn init_generic(&self, heap_start: *mut u8, heap_end: usize) {
         let mut generic = self.generic.lock();
         unsafe { generic.init(heap_start, heap_end) };
     }
 
     /// Grows the generic allocator by the given size.
-    pub unsafe fn grow_generic(&self, grow_size: usize) {
+    pub fn grow_generic(&self, grow_size: usize) {
         let mut generic = self.generic.lock();
-        unsafe { generic.grow_by_size(grow_size) };
+        generic.grow_by_size(grow_size);
     }
 
     /// Creates a zone allocator.
@@ -103,7 +103,7 @@ impl GenericAllocator {
         loop {
             match self.alloc.allocate_first_fit(layout) {
                 Ok(allocation) => return allocation.as_ptr(),
-                Err(_) => unsafe { self.grow() },
+                Err(_) => self.grow(),
             };
         }
     }
@@ -114,15 +114,16 @@ impl GenericAllocator {
     }
 
     /// Grows the heap, and returns the new size of the heap.
-    unsafe fn grow(&mut self) -> usize {
+    fn grow(&mut self) -> usize {
         let new_size = self.alloc.size() * Self::EXPANSION_FACTOR - self.alloc.size();
         log::trace!("KEREL: Heap grown to {:#X}b", new_size);
-        unsafe { self.grow_by_size(new_size) };
+        self.grow_by_size(new_size);
         new_size
     }
 
-    // FIXME: This should grow as much as possible, but it just panics if we run out of memory.
-    unsafe fn grow_by_size(&mut self, grow_size: usize) {
+    /// Grows the heap by the given size.
+    fn grow_by_size(&mut self, grow_size: usize) {
+        // FIXME: This should grow as much as possible, but it just panics if we run out of memory.
         let new_size = self.alloc.size() + grow_size;
         assert!(new_size <= mappings::KERNEL_HEAP_SIZE as usize, "Heap is full");
         let extra_pages = (new_size - self.alloc.size()).div_ceil(Size4KiB::SIZE as usize);

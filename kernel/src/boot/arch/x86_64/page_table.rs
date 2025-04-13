@@ -2,7 +2,7 @@ use alloc::vec::Vec;
 use x86_64::{
     PhysAddr, VirtAddr,
     registers::control::Cr3Flags,
-    structures::paging::{FrameDeallocator, PageTable, PageTableFlags, PhysFrame, page_table::PageTableEntry},
+    structures::paging::{PageTable, PageTableFlags, PhysFrame, page_table::PageTableEntry},
 };
 
 use crate::boot::arch::memory_map::FrameBasedAllocator;
@@ -114,7 +114,8 @@ impl<'a> BootstrapPageTable<'a> {
         unsafe { x86_64::registers::control::Cr3::write(self.pml4_phys, Cr3Flags::empty()) };
     }
 
-    pub fn phys_addr(&self) -> PhysAddr {
+    /// Consuming self, returning the physical address of the page table
+    pub fn as_phys_addr(self) -> PhysAddr {
         self.pml4_phys.start_address()
     }
 
@@ -150,9 +151,7 @@ impl<'a> BootstrapPageTable<'a> {
             );
             page_table[pml4_index as usize] = entry;
 
-            // Now we need to recursive map the page tables
-
-            return table;
+            table
         })
     }
 
@@ -190,14 +189,14 @@ impl<'a> BootstrapPageTable<'a> {
             entry.set_frame(table.frame, PageTableFlags::PRESENT | PageTableFlags::WRITABLE);
             pdpt_table[pdpt_index as usize] = entry;
 
-            return table;
+            table
         })
     }
 
     fn try_get_pt(&self, pml4_index: u16, pdpt_index: u16, pd_index: u16) -> Option<PtTable> {
         self.pt.iter().find_map(|p| {
             if p.pml4_index == pml4_index && p.pdpt_index == pdpt_index && p.pd_index == pd_index {
-                return Some(*p);
+                Some(*p)
             } else {
                 None
             }
@@ -229,7 +228,7 @@ impl<'a> BootstrapPageTable<'a> {
             let mut entry = PageTableEntry::new();
             entry.set_frame(table.frame, PageTableFlags::PRESENT | PageTableFlags::WRITABLE);
             pd_table[pd_index as usize] = entry;
-            return table;
+            table
         })
     }
 
@@ -253,23 +252,5 @@ impl<'a> BootstrapPageTable<'a> {
         let mut entry = PageTableEntry::new();
         entry.set_frame(frame, flags);
         pt_table[addr.p1_index()] = entry;
-    }
-
-    /// # Safety
-    /// This function is unsafe because it deallocates frames without checking if they are still
-    /// in use.
-    ///
-    /// This function should never be called if the page table is still in use (entire duration of
-    /// the kernel).
-    pub unsafe fn deinit(&mut self, frame_allocator: &mut BasicFrameAllocator) {
-        for pdpt in self.pdpts.iter_mut() {
-            unsafe { frame_allocator.deallocate_frame(pdpt.frame) };
-        }
-        for pd in self.pds.iter_mut() {
-            unsafe { frame_allocator.deallocate_frame(pd.frame) };
-        }
-        for pt in self.pt.iter_mut() {
-            unsafe { frame_allocator.deallocate_frame(pt.frame) };
-        }
     }
 }

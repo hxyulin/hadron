@@ -92,12 +92,12 @@ pub static WRITER: KernelWriter = KernelWriter::empty();
 
 #[macro_export]
 macro_rules! print {
-    ($($arg:tt)*) => { _ = $crate::util::logger::WRITER.write_fmt(format_args!($($arg)*)) }
+    ($($arg:tt)*) => { $crate::util::logger::WRITER.write_fmt(format_args!($($arg)*)).unwrap() }
 }
 
 #[macro_export]
 macro_rules! println {
     () => { $crate::print!("\n") };
     (fmt:expr) => { $crate::print!(concat!($fmt, "\n")) };
-    ($fmt:expr, $($arg:tt)*) => { _ = $crate::print!(concat!($fmt, "\n"), $($arg)*) };
+    ($fmt:expr, $($arg:tt)*) => { $crate::print!(concat!($fmt, "\n"), $($arg)*) };
 }

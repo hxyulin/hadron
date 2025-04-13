@@ -1,7 +1,7 @@
 //! The base info module.
 //! This contains the base KernelInfo struct, which contains information about the kernel.
 
-use alloc::boxed::Box;
+use alloc::{boxed::Box, vec::Vec};
 use conquer_once::spin::OnceCell;
 use spin::{Mutex, RwLock};
 
@@ -10,7 +10,7 @@ use crate::{boot::info::BootInfo, devices::DeviceManager, util::timer::Timer};
 use super::{
     arch::x86_64::apic::Apics,
     io::mmio::KernelMmio,
-    mem::{frame_allocator::KernelFrameAllocator, page_table::KernelPageTable},
+    mem::{frame_allocator::KernelFrameAllocator, page_table::KernelPageTable}, pci::PCIeDeviceInfo,
 };
 
 pub struct RuntimeInfo {
@@ -26,6 +26,10 @@ pub struct RuntimeInfo {
     pub mmio: Mutex<KernelMmio>,
     pub pics: OnceCell<Mutex<Apics>>,
     pub timer: OnceCell<RwLock<Box<dyn Timer>>>,
+    /// The PCI devices
+    ///
+    /// This stores a list of devices, and whether or not a driver has been found for the device
+    pub pci_devices: RwLock<Vec<(PCIeDeviceInfo, bool)>>,
 }
 
 impl RuntimeInfo {
@@ -37,6 +41,7 @@ impl RuntimeInfo {
             mmio: Mutex::new(KernelMmio::new()),
             pics: OnceCell::uninit(),
             timer: OnceCell::uninit(),
+            pci_devices: RwLock::new(Vec::new()),
         }
     }
 }

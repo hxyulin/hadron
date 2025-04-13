@@ -202,6 +202,7 @@ impl VirtualUnwinder {
     /// Get the next call frame.
     ///
     /// Returns `Ok(None)` or `Err(UnwinderError::NoUnwindInfo)` if there are no more frames.
+    #[allow(clippy::should_implement_trait)]
     pub fn next(&mut self) -> Result<Option<CallFrame>, UnwinderError> {
         let pc = self.regs.get_pc().ok_or(UnwinderError::NoPcRegister)?;
 

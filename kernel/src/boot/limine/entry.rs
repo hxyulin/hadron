@@ -21,7 +21,7 @@ use crate::{
     },
     boot::{
         arch::{
-            memory_map::FrameBasedAllocator,
+            memory_map::{FrameBasedAllocator, MemoryMapEntry, MemoryRegionType},
             x86_64::{frame_allocator::BasicFrameAllocator, page_table::BootstrapPageTable},
         },
         drivers::{framebuffer::FramebufferWriter, serial::SerialWriter},
@@ -167,14 +167,17 @@ fn populate_boot_info() {
         "[Boot] kernel loaded at {:#x}\n", boot_info.kernel_start_virt
     );
     print!(boot_info, "[Boot] hhdm offset: {:#x}\n", boot_info.hhdm_offset);
-    let module = requests::MODULES.get_response().unwrap();
-    for module in module.modules() {
-        print!(boot_info, "[Boot] module: {:#?}\n", module);
-    }
+    let _module = requests::MODULES.get_response().unwrap();
+    // TODO: parse modules
     print!(boot_info, "[Boot] parsing memory map...\n");
     boot_info
         .memory_map
         .parse_from_limine(requests::MEMORY_MAP.get_response().unwrap(), boot_info.hhdm_offset);
+    print!(
+        boot_info,
+        "[Boot] total memory available: {:#?}\n",
+        boot_info.memory_map.total_size()
+    );
     let rsdp = requests::RSDP.get_response().unwrap();
     boot_info.rsdp_addr = PhysAddr::new(rsdp.address);
 }
@@ -209,7 +212,6 @@ fn allocate_pages() -> ! {
     if let Some(framebuffer) = boot_info.framebuffer.as_ref() {
         pages_to_allocate += calculate_pages_needed(framebuffer.fb_size().div_ceil(Size4KiB::SIZE as usize));
     }
-    print!(boot_info, "[Boot] allocating {} pages\n", pages_to_allocate);
 
     // FIXME: In the future we can split this between many regions, since they don't need to be contiguous
     let frame = frame_allocator.allocate_mapped_contiguous(pages_to_allocate).unwrap();
@@ -222,20 +224,10 @@ fn allocate_pages() -> ! {
     let mut page_table = BootstrapPageTable::new(boot_info.hhdm_offset, &mut frame_allocator, &allocator);
 
     let start_phys = boot_info.kernel_start_phys;
-    print!(
-        boot_info,
-        "[Boot] kernel size: {:#x} + {:#x} = {:#x}\n",
-        kernel_size.0,
-        kernel_size.1,
-        kernel_size.0 + kernel_size.1
-    );
     assert!(
-        (boot_info.kernel_start_virt + kernel_size.0 as u64 + kernel_size.1 as u64)
-            < mappings::KERNEL_TEXT_END,
-        "Kernel text section is too large"
+        (boot_info.kernel_start_virt + kernel_size.0 as u64 + kernel_size.1 as u64) < mappings::KERNEL_TEXT_END,
+        "Kernel is too large"
     );
-
-    print!(boot_info, "[Boot] mapping kernel text section...\n");
 
     // Map text section with execute permissions
     for i in 0..kernel_size.0 as u64 / Size4KiB::SIZE {
@@ -248,8 +240,6 @@ fn allocate_pages() -> ! {
         );
     }
 
-    print!(boot_info, "[Boot] mapping kernel data section...\n");
-
     // Map data section with writable permissions but no execute permissions
     for i in 0..kernel_size.1 as u64 / Size4KiB::SIZE {
         let offset = i * Size4KiB::SIZE + kernel_size.0 as u64;
@@ -260,8 +250,6 @@ fn allocate_pages() -> ! {
             &mut frame_allocator,
         );
     }
-
-    print!(boot_info, "[Boot] mapping kernel stack...\n");
 
     let stack_virt = mappings::KERNEL_STACK_START + mappings::KERNEL_STACK_SIZE - requests::KERNEL_STACK_SIZE as u64;
     for i in 0..stack_frames {
@@ -274,8 +262,6 @@ fn allocate_pages() -> ! {
         );
     }
 
-    print!(boot_info, "[Boot] mapping kernel heap...\n");
-
     for i in 0..heap_frames {
         let offset = i * Size4KiB::SIZE;
         page_table.map(
@@ -286,8 +272,6 @@ fn allocate_pages() -> ! {
         );
     }
     boot_info.heap = (mappings::KERNEL_HEAP, HEAP_SIZE);
-
-    print!(boot_info, "[Boot] mapping memory map...\n");
 
     // Allocate memory map
     for i in 0..mmap_frames {
@@ -301,7 +285,7 @@ fn allocate_pages() -> ! {
     }
 
     // Map framebuffer
-    if let Some(framebuffer) = boot_info.framebuffer.as_mut() {
+    if let Some(framebuffer) = boot_info.framebuffer.as_ref() {
         let fb_virt = VirtAddr::new(framebuffer.fb_addr() as u64);
         let fb_phys = PhysAddr::new(fb_virt.as_u64() - boot_info.hhdm_offset);
         let fb_pages = framebuffer.fb_size().div_ceil(Size4KiB::SIZE as usize);
@@ -318,13 +302,17 @@ fn allocate_pages() -> ! {
                 &mut frame_allocator,
             );
         }
-        unsafe { framebuffer.set_fb_addr(mappings::FRAMEBUFFER.as_u64() as usize) };
     }
 
-    let page_table_ptr = page_table.phys_addr().as_u64();
+    let page_table_ptr = page_table.as_phys_addr().as_u64();
+
+    allocator.deinit(&mut frame_allocator, boot_info.hhdm_offset);
 
     // Setup the page tables, switch to the new stack, and push a null pointer to the stack
     unsafe {
+        if let Some(framebuffer) = boot_info.framebuffer.as_mut() {
+            framebuffer.set_fb_addr(mappings::FRAMEBUFFER.as_u64() as usize);
+        }
         core::arch::asm!(
             "mov cr3, {ptr}",
             "mov rsp, {stack}",
@@ -345,7 +333,15 @@ fn limine_stage_2() -> ! {
     print!(boot_info, "[Boot] constructing page tables...\n");
     let mut page_table = KernelPageTable::new();
     print!(boot_info, "[Boot] constructing memory map...\n");
-    let memory_map = MemoryMap::from_bootstrap(&mut boot_info.memory_map, &mut page_table);
+    let mut memory_map = MemoryMap::from_bootstrap(&mut boot_info.memory_map, &mut page_table);
+    // We can free the memory map and unmap it
+    let mapped_range = boot_info.memory_map.mapped_range();
+    memory_map.push_entry(MemoryMapEntry {
+        base: PhysAddr::new((mapped_range.0 - boot_info.hhdm_offset).as_u64()),
+        length: mapped_range.1,
+        memory_type: MemoryRegionType::Usable,
+    });
+    // TODO: Can we somehow make it type safe so that the old memory map is not used?
     print!(boot_info, "[Boot] constructing frame allocator...\n");
     let mut frame_allocator = KernelFrameAllocator::new(memory_map);
     log::debug!("Reclaiming bootloader memory");

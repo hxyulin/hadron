@@ -122,6 +122,11 @@ impl FramebufferResponse {
         self.framebuffer_count as usize
     }
 
+    /// Returns true if there are no framebuffers.
+    pub fn is_empty(&self) -> bool {
+        self.framebuffer_count == 0
+    }
+
     /// Returns an iterator over the framebuffers.
     pub fn framebuffers(&self) -> FramebufferList {
         FramebufferList::new(self.revision, self.framebuffer_ptrs())

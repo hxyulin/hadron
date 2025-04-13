@@ -1,8 +1,11 @@
-use x86_64::structures::paging::{FrameAllocator, FrameDeallocator, PageSize, PhysFrame, Size4KiB};
+use x86_64::{
+    PhysAddr,
+    structures::paging::{FrameAllocator, PageSize, PhysFrame, Size4KiB},
+};
 
 use core::option::Option;
 
-use crate::boot::arch::memory_map::{BootstrapMemoryMap, MemoryRegionType};
+use crate::boot::arch::memory_map::{BootstrapMemoryMap, MemoryMapEntry, MemoryRegionType};
 
 #[derive(Debug)]
 pub struct BasicFrameAllocator<'ctx> {
@@ -57,7 +60,7 @@ impl<'ctx> BasicFrameAllocator<'ctx> {
                 break;
             }
 
-            if region.ty() == MemoryRegionType::Usable && region.length() >=size {
+            if region.ty() == MemoryRegionType::Usable && region.length() >= size {
                 let frame_addr = region.base();
 
                 // Adjust the existing region instead of creating a new one
@@ -75,6 +78,16 @@ impl<'ctx> BasicFrameAllocator<'ctx> {
             i += 1;
         }
         None
+    }
+
+    pub fn deallocate_region(&mut self, start: PhysAddr, length: u64) {
+        assert!(length % Size4KiB::SIZE == 0);
+        assert!(start.as_u64() % Size4KiB::SIZE == 0);
+        self.memory_map.push(MemoryMapEntry {
+            base: start,
+            length,
+            memory_type: MemoryRegionType::Usable,
+        });
     }
 }
 
@@ -102,11 +115,5 @@ unsafe impl FrameAllocator<x86_64::structures::paging::Size4KiB> for BasicFrameA
             i += 1;
         }
         None
-    }
-}
-
-impl FrameDeallocator<x86_64::structures::paging::Size4KiB> for BasicFrameAllocator<'_> {
-    unsafe fn deallocate_frame(&mut self, frame: x86_64::structures::paging::PhysFrame) {
-        unimplemented!()
     }
 }

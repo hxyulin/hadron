@@ -50,6 +50,11 @@ impl MemoryRegion {
         self.bitmap.set(idx, false);
     }
 
+
+    /// Resizes the bitmap to the given size.
+    ///
+    /// # Safety
+    /// This function is unsafe because the new size must be valid (usable) memory.
     unsafe fn resize(&mut self, new_size_pages: usize) {
         unsafe { self.bitmap.resize(new_size_pages) };
     }
@@ -65,7 +70,8 @@ impl Bitmap<alloc::alloc::Global> {
 }
 
 impl<A> Bitmap<A>
-    where A: alloc::alloc::Allocator
+where
+    A: alloc::alloc::Allocator,
 {
     pub fn new_in(size: usize, alloc: A) -> Self {
         let len = size.div_ceil(64);
@@ -126,7 +132,8 @@ impl<A> Bitmap<A>
 }
 
 impl<A> core::fmt::Debug for Bitmap<A>
-    where A: alloc::alloc::Allocator
+where
+    A: alloc::alloc::Allocator,
 {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_tuple("Bitmap")
@@ -184,8 +191,11 @@ impl MemoryMap {
     pub fn from_bootstrap(memory_map: &mut BootstrapMemoryMap, page_table: &mut KernelPageTable) -> Self {
         use crate::boot::arch::x86_64::frame_allocator::BasicFrameAllocator;
 
+        /// The number of entries we need to reserve for the memory map, for deallocation of the
+        /// bootstrap structures
+        const RESERVED_ENTRIES: u64 = 8;
         // We need to calculate how much memory we need for the entire memory map
-        let mut required_size = 0;
+        let mut required_size = size_of::<MemoryRegion>() as u64 * RESERVED_ENTRIES;
         for region in memory_map.iter() {
             required_size += size_of::<MemoryRegion>() as u64;
             let bitmap_size = region.length.div_ceil(32768);
@@ -212,8 +222,15 @@ impl MemoryMap {
         });
         let mut entries = Vec::new_in(alloc.clone());
         entries.reserve_exact(memory_map.len());
-        for entry in memory_map.iter().filter(|entry| entry.ty() == MemoryRegionType::Usable && entry.length() > 0) {
-            entries.push(MemoryRegion::from_base_and_length(entry.base(), entry.length(), alloc.clone()));
+        for entry in memory_map
+            .iter()
+            .filter(|entry| entry.ty() == MemoryRegionType::Usable && entry.length() > 0)
+        {
+            entries.push(MemoryRegion::from_base_and_length(
+                entry.base(),
+                entry.length(),
+                alloc.clone(),
+            ));
         }
 
         Self {
@@ -221,5 +238,13 @@ impl MemoryMap {
             entries,
             special: Vec::new(),
         }
+    }
+
+    pub fn push_entry(&mut self, entry: crate::boot::arch::memory_map::MemoryMapEntry) {
+        self.entries.push(MemoryRegion::from_base_and_length(
+            entry.base(),
+            entry.length(),
+            self.alloc.clone(),
+        ));
     }
 }

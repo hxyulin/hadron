@@ -10,7 +10,8 @@ use crate::{
         arch::x86_64::apic::Apics,
         info::kernel_info,
         io::mmio::allocate_persistent_mmio,
-        mem::{map_page, unmap_page}, pci::PCIeConfigSpace,
+        mem::{map_page, unmap_page},
+        pci::PCIeDeviceInfo,
     },
     util::timer::hpet::Hpet,
 };
@@ -21,6 +22,8 @@ use core::ptr::NonNull;
 /// This includes:
 /// - Parsing the ACPI tables
 /// - Setting up the RSDP
+/// - Finding the HPET
+/// - Finding the platform info
 pub fn init(rsdp: PhysAddr) {
     let mapper = AcpiMapper::new();
     let tables =
@@ -33,9 +36,13 @@ pub fn init(rsdp: PhysAddr) {
     parse_platform_info(&platform_info);
     match tables.find_table::<acpi::mcfg::Mcfg>() {
         Err(e) => log::warn!("ACPI: failed to parse MCFG table: {:?}", e),
-        Ok(mcfg) => {
-            assert_eq!(mcfg.entries().len(), 1);
-            let pcie = unsafe { PCIeConfigSpace::from_mcfg(&mcfg.entries()[0]) };
+        Ok(mcfg) => for entry in mcfg.entries() {
+            let devices = unsafe { PCIeDeviceInfo::from_mcfg(entry) };
+            let mut pcie_devices = kernel_info().pci_devices.write();
+            pcie_devices.reserve(devices.len());
+            for device in devices {
+                pcie_devices.push((device, false));
+            }
         }
     }
 }

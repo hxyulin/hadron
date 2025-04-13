@@ -1,3 +1,5 @@
+use core::{marker::Unsize, ops::{CoerceUnsized, DispatchFromDyn}};
+
 use x86_64::{
     VirtAddr,
     structures::paging::{FrameAllocator, FrameDeallocator, Page, PageTableFlags, PhysFrame},
@@ -39,7 +41,7 @@ pub unsafe fn map_page(frame: PhysFrame, addr: VirtAddr, flags: PageTableFlags) 
 /// This function is unsafe because it can cause UB if the page is still in use.
 pub unsafe fn unmap_page(virt_addr: VirtAddr) {
     let page = Page::from_start_address(virt_addr).expect("unmap_page should be called with aligned addresses");
-    kernel_info().page_table.lock().unmap(page);
+    unsafe { kernel_info().page_table.lock().unmap(page) };
 }
 
 #[doc(alias = "alloc::sync::Arc")]
@@ -83,3 +85,6 @@ where
         self.0.deref()
     }
 }
+
+impl<T: ?Sized + Unsize<U>, U: ?Sized, A: alloc::alloc::Allocator> CoerceUnsized<Arc<U, A>> for Arc<T, A> {}
+impl<T: ?Sized + Unsize<U>, U: ?Sized> DispatchFromDyn<Arc<U>> for Arc<T> {}

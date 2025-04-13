@@ -44,7 +44,7 @@ impl KernelPageTable {
             .flush();
     }
 
-    pub fn unmap(&mut self, page: Page) {
+    pub unsafe fn unmap(&mut self, page: Page) {
         self.table.unmap(page).unwrap().1.flush();
     }
 }
