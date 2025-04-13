@@ -3,7 +3,7 @@ resolver = "2"
 members = [
     "crates/hadron-test",
     "crates/limine",
-    "crates/menuconfig",
+    "crates/menuconfig", "crates/no-alloc",
     "crates/volatile",
     "kernel",
 ]
@@ -19,6 +19,7 @@ menuconfig = { path = "crates/menuconfig", default-features = false }
 limine = { path = "crates/limine", default-features = false }
 volatile = { path = "crates/volatile", default-features = false }
 hadron-test = { path = "crates/hadron-test", default-features = false }
+no-alloc = { path = "crates/no-alloc", default-features = false }
 
 static_assertions = { version = "1.1.0", features = ["nightly"] }
 lazy_static = { version = "1.5.0", features = ["spin_no_std"] }

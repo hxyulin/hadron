@@ -1,5 +1,4 @@
 # Features
-
 Features of the kernel, updated live as the kernel is developed.
 
 ## General
@@ -14,3 +13,6 @@ Features of the kernel, updated live as the kernel is developed.
 
 ## Security
  - The kernel is loaded at a random address (KASLR).
+
+## Known Issues
+ - The kernel uses the `NX` paging bit without checking if the CPU supports it.

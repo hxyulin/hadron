@@ -4,43 +4,88 @@ use log::Log;
 use spin::Mutex;
 
 use super::timer::time_since_boot;
-use crate::base::info::kernel_info;
 
 pub mod framebuffer;
 pub mod serial;
 
+pub trait Writer: Write + Send + Sync {}
+impl<T: Write + Send + Sync> Writer for T {}
+
+struct FallbackFnTable {
+    write_str: fn(&str) -> core::fmt::Result,
+    write_fmt: fn(core::fmt::Arguments<'_>) -> core::fmt::Result,
+}
+
+impl FallbackFnTable {
+    const fn default() -> Self {
+        Self {
+            write_str: fallback_write_str,
+            write_fmt: fallback_write_fmt,
+        }
+    }
+}
+
+fn fallback_write_str(_s: &str) -> core::fmt::Result {
+    Ok(())
+}
+fn fallback_write_fmt(_args: core::fmt::Arguments<'_>) -> core::fmt::Result {
+    Ok(())
+}
+
 /// The main writer for the kernel, which can be used for logging.
-/// In initial stages, this prints directly to the serial port devices or framebuffers.
-/// Later on, the output will be redirected to a open file as a TTY device, and flushed using
-/// another process
 pub struct KernelWriter {
-    /// The TTY devices to log to
-    outputs: Mutex<Vec<Box<dyn Write + Send + Sync>>>,
+    outputs: Mutex<Vec<Box<dyn Writer>>>,
+    fallback: Mutex<FallbackFnTable>,
 }
 
 impl KernelWriter {
     pub const fn empty() -> Self {
         Self {
             outputs: Mutex::new(Vec::new()),
+            fallback: Mutex::new(FallbackFnTable::default()),
         }
     }
 
-    pub fn add_output(&self, output: Box<dyn Write + Send + Sync>) {
+    pub fn add_output(&self, output: Box<dyn Writer>) {
         self.outputs.lock().push(output);
+    }
+
+    pub fn remove_fallback(&self) {
+        let mut fallback = self.fallback.lock();
+        fallback.write_str = fallback_write_str;
+        fallback.write_fmt = fallback_write_fmt;
+    }
+
+    pub fn add_fallback(
+        &self,
+        write_str: fn(&str) -> core::fmt::Result,
+        write_fmt: fn(core::fmt::Arguments<'_>) -> core::fmt::Result,
+    ) {
+        let mut fallback = self.fallback.lock();
+        fallback.write_str = write_str;
+        fallback.write_fmt = write_fmt;
     }
 
     pub fn write_str(&self, s: &str) -> core::fmt::Result {
         let mut outputs = self.outputs.lock();
-        for device in outputs.iter_mut() {
-            device.write_str(s)?;
+        if outputs.is_empty() {
+            (self.fallback.lock().write_str)(s)?;
+        } else {
+            for device in outputs.iter_mut() {
+                device.write_str(s)?;
+            }
         }
         Ok(())
     }
 
     pub fn write_fmt(&self, args: core::fmt::Arguments<'_>) -> core::fmt::Result {
         let mut outputs = self.outputs.lock();
-        for device in outputs.iter_mut() {
-            device.write_fmt(args)?;
+        if outputs.is_empty() {
+            (self.fallback.lock().write_fmt)(args)?;
+        } else {
+            for device in outputs.iter_mut() {
+                device.write_fmt(args)?;
+            }
         }
         Ok(())
     }

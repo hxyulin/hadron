@@ -1,0 +1,6 @@
+[package]
+name = "no-alloc"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]

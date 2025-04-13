@@ -3,10 +3,10 @@ use core::ops::DerefMut;
 use alloc::vec::Vec;
 use x86_64::{
     PhysAddr, VirtAddr,
-    structures::paging::{Page, PageSize, PageTableFlags, PhysFrame, Size4KiB},
+    structures::paging::{Page, PageSize, PageTableFlags, PhysFrame, Size2MiB},
 };
 
-use crate::base::info::kernel_info;
+use crate::base::mem::page_table::PageTable;
 
 #[derive(Debug, Clone)]
 pub struct PCIeDeviceInfo {
@@ -26,24 +26,25 @@ impl PCIeDeviceInfo {
     /// address in the McfgEntry is valid.
     pub unsafe fn from_mcfg(entry: &acpi::mcfg::McfgEntry) -> Vec<Self> {
         let mut devices = Vec::new();
-        const FRAMES_PER_BUS: usize = 8 * 32;
+        const FRAMES_PER_BUS: u64 = 8 * 32;
         let bus_count = (entry.bus_number_end - entry.bus_number_start) as usize + 1;
-        let pages_needed = bus_count as u64 * FRAMES_PER_BUS as u64;
+        // Divide by 512 because we are using 2 MiB pages
+        let pages_needed = bus_count as u64 * FRAMES_PER_BUS as u64 / 512;
         let mut buses = Vec::with_capacity(bus_count);
         for i in entry.bus_number_start..entry.bus_number_end {
             buses.push(PCIEBus::new(i));
         }
-        log::debug!("PCI: mapping config space ({} pages)", pages_needed);
+        log::debug!("PCI: mapping config space ({} 2MiB pages)", pages_needed);
         {
             // TODO: We can probably use bigger frames here like 2MiB
-            let mut page_table = kernel_info().page_table.lock();
-            let mut allocator = kernel_info().frame_allocator.lock();
+            let mut page_table = crate::base::mem::PAGE_TABLE.lock();
+            let mut allocator = crate::base::mem::FRAME_ALLOCATOR.lock();
             for i in 0..pages_needed {
-                let addr = entry.base_address + i * Size4KiB::SIZE;
+                let addr = entry.base_address + i * Size2MiB::SIZE;
                 unsafe {
                     page_table.map_with_allocator(
-                        Page::from_start_address(VirtAddr::new(addr)).unwrap(),
-                        PhysFrame::from_start_address(PhysAddr::new(addr)).unwrap(),
+                        Page::<Size2MiB>::from_start_address(VirtAddr::new(addr)).unwrap(),
+                        PhysFrame::<Size2MiB>::from_start_address(PhysAddr::new(addr)).unwrap(),
                         PageTableFlags::PRESENT
                             | PageTableFlags::WRITABLE
                             | PageTableFlags::NO_EXECUTE
@@ -78,10 +79,10 @@ impl PCIeDeviceInfo {
         {
             log::debug!("PCI: unmapping config space");
             // Unmap the PCI config space
-            let mut page_table = kernel_info().page_table.lock();
+            let mut page_table = crate::base::mem::PAGE_TABLE.lock();
             for i in 0..pages_needed {
-                let addr = entry.base_address + i * Size4KiB::SIZE;
-                unsafe { page_table.unmap(Page::from_start_address(VirtAddr::new(addr)).unwrap()) };
+                let addr = entry.base_address + i * Size2MiB::SIZE;
+                unsafe { page_table.unmap(Page::<Size2MiB>::from_start_address(VirtAddr::new(addr)).unwrap()) };
             }
         }
 

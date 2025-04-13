@@ -7,7 +7,7 @@ use alloc::{
 use linked_list_allocator::LockedHeap;
 use x86_64::{PhysAddr, VirtAddr};
 
-use crate::base::mem::Arc;
+use crate::base::mem::sync::Arc;
 
 use super::x86_64::frame_allocator::BasicFrameAllocator;
 
