@@ -1,4 +1,8 @@
+use local::LocalApic;
 use pic::LegacyPic;
+use x86_64::PhysAddr;
+
+use crate::base::info::kernel_info;
 
 pub mod io;
 pub mod local;
@@ -6,6 +10,7 @@ pub mod pic;
 
 pub struct Apics {
     legacy: Option<LegacyPic>,
+    lapic: LocalApic,
 }
 
 impl Apics {
@@ -20,6 +25,21 @@ impl Apics {
             None
         };
 
-        Self { legacy }
+        // A page aligned size for the local APIC, so we round up to the next page size
+        let mmio_addr = kernel_info()
+            .mmio
+            .lock()
+            .allocate_persistant(PhysAddr::new(apic.local_apic_address), 4096);
+        log::debug!(
+            "ACPI: local APIC at {:#x} (base = {:#x})",
+            mmio_addr,
+            apic.local_apic_address
+        );
+        let mut lapic = LocalApic::new(mmio_addr);
+        lapic.init(apic.local_apic_address);
+
+        // TODO: IO APICs
+
+        Self { legacy, lapic }
     }
 }

@@ -18,5 +18,6 @@ pub const MEMORY_MAPPINGS: VirtAddr = VirtAddr::new(0xFFFF_FFFE_6000_0000);
 pub const MEMORY_MAPPINGS_SIZE: u64 = 0xFFFF_FFFE_7000_0000 - MEMORY_MAPPINGS.as_u64();
 pub const MMIO_SPACE: VirtAddr = VirtAddr::new(0xFFFF_FFFE_7000_0000);
 pub const MMIO_SPACE_SIZE: u64 = 0xFFFF_FFFF_8000_0000 - MMIO_SPACE.as_u64();
-pub const KERNEL_TEXT_START: VirtAddr = VirtAddr::new(0xFFFF_FFFF_0000_0000);
+/// Limine KASLR loads the kernel lowest at 0xFFFF_FFFF_8000_0000, up to 0xFFFF_FFFF_FFFF_FFFF
+pub const KERNEL_TEXT_START: VirtAddr = VirtAddr::new(0xFFFF_FFFF_8000_0000);
 pub const KERNEL_TEXT_END: VirtAddr = VirtAddr::new(0xFFFF_FFFF_FFFF_FFFF);

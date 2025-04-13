@@ -66,7 +66,7 @@ impl Log for KernelLogger {
 
     fn log(&self, record: &log::Record) {
         let _ = WRITER.write_fmt(format_args!(
-            "[{}] {}: {}\n",
+            "[{:.5}] {}: {}\n",
             time_since_boot().as_secs_f64(),
             record.level(),
             record.args()

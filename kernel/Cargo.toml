@@ -65,6 +65,8 @@ run-command = [
     "qemu-system-x86_64",
     "-cdrom",
     "{}",
+    "-machine",
+    "q35",
     "-serial",
     "stdio",
     "-no-reboot",

@@ -10,7 +10,7 @@ use crate::{
         arch::x86_64::apic::Apics,
         info::kernel_info,
         io::mmio::allocate_persistent_mmio,
-        mem::{map_page, unmap_page},
+        mem::{map_page, unmap_page}, pci::PCIeConfigSpace,
     },
     util::timer::hpet::Hpet,
 };
@@ -25,12 +25,19 @@ pub fn init(rsdp: PhysAddr) {
     let mapper = AcpiMapper::new();
     let tables =
         unsafe { acpi::AcpiTables::from_rsdp(mapper, rsdp.as_u64() as usize) }.expect("failed to parse ACPI tables");
-    let platform_info = tables.platform_info().expect("failed to parse platform info");
     match acpi::HpetInfo::new(&tables) {
         Ok(hpet) => parse_hpet_info(hpet),
         Err(e) => log::warn!("ACPI: failed to parse HPET info: {:?}", e),
     }
+    let platform_info = tables.platform_info().expect("failed to parse platform info");
     parse_platform_info(&platform_info);
+    match tables.find_table::<acpi::mcfg::Mcfg>() {
+        Err(e) => log::warn!("ACPI: failed to parse MCFG table: {:?}", e),
+        Ok(mcfg) => {
+            assert_eq!(mcfg.entries().len(), 1);
+            let pcie = unsafe { PCIeConfigSpace::from_mcfg(&mcfg.entries()[0]) };
+        }
+    }
 }
 
 fn parse_hpet_info(hpet: acpi::HpetInfo) {
@@ -55,7 +62,22 @@ fn parse_platform_info(platform_info: &acpi::PlatformInfo<alloc::alloc::Global>)
         }
         _ => panic!("ACPI: unknown/unsupported interrupt model"),
     }
-    log::info!("ACPI: platform info: {:?}", platform_info);
+
+    match platform_info.pm_timer.as_ref() {
+        None => log::warn!("ACPI: no PM timer"),
+        Some(_timer) => {
+            // TODO: parse PM timer, in the condition where HPET is not available
+        }
+    }
+
+    match platform_info.processor_info.as_ref() {
+        None => log::warn!("ACPI: no processor info"),
+        Some(processor_info) => {
+            let id = processor_info.boot_processor.processor_uid;
+            let apic_id = processor_info.boot_processor.local_apic_id;
+            log::debug!("ACPI: processor info: processor ID {}, local APIC ID {}", id, apic_id);
+        }
+    }
 }
 
 /// A mapper to map ACPI frames to logical addresses
