@@ -1,6 +1,6 @@
 use core::fmt::Arguments;
 
-use alloc::sync::Arc;
+use alloc::{boxed::Box, sync::Arc};
 use spin::Mutex;
 use x86_64::{
     PhysAddr, VirtAddr,
@@ -24,15 +24,14 @@ use crate::{
             memory_map::{FrameBasedAllocator, MemoryMapEntry, MemoryRegionType},
             x86_64::{frame_allocator::BasicFrameAllocator, page_table::BootstrapPageTable},
         },
-        drivers::{framebuffer::FramebufferWriter, serial::SerialWriter},
         info::boot_info_mut,
     },
-    devices::{
-        fb::{Framebuffer, FramebufferInfo, PixelFormat},
-        tty::{fb::VirtFbTtyDevice, serial::SerialDevice},
-    },
     util::{
-        logger::{LOGGER, WRITER},
+        logging::{
+            LOGGER, WRITER,
+            framebuffer::{Framebuffer, FramebufferInfo, FramebufferWriter, PixelFormat},
+            serial::SerialWriter,
+        },
         machine_state::MachineState,
     },
 };
@@ -328,11 +327,12 @@ fn allocate_pages() -> ! {
 
 fn limine_stage_2() -> ! {
     init_heap();
+    init_logging();
 
     let boot_info = unsafe { boot_info_mut() };
-    print!(boot_info, "[Boot] constructing page tables...\n");
+    log::debug!("BOOT: constructing page tables...");
     let mut page_table = KernelPageTable::new();
-    print!(boot_info, "[Boot] constructing memory map...\n");
+    log::debug!("BOOT: constructing memory map...");
     let mut memory_map = MemoryMap::from_bootstrap(&mut boot_info.memory_map, &mut page_table);
     // We can free the memory map and unmap it
     let mapped_range = boot_info.memory_map.mapped_range();
@@ -342,38 +342,21 @@ fn limine_stage_2() -> ! {
         memory_type: MemoryRegionType::Usable,
     });
     // TODO: Can we somehow make it type safe so that the old memory map is not used?
-    print!(boot_info, "[Boot] constructing frame allocator...\n");
+    log::debug!("BOOT: constructing frame allocator...");
     let mut frame_allocator = KernelFrameAllocator::new(memory_map);
-    log::debug!("Reclaiming bootloader memory");
+    log::debug!("BOOT: freeing bootloader memory...");
     frame_allocator.free_special_region(MemoryRegionTag::BootloaderReclaimable);
 
     let rsdp = boot_info.rsdp_addr;
-
     let total_pages = frame_allocator.total_pages();
-    print!(boot_info, "[Boot] pages available: {}\n", total_pages);
+    log::debug!("BOOT: pages available: {}", total_pages);
 
     let runtime_info = RuntimeInfo::new(Mutex::new(frame_allocator), Mutex::new(page_table));
-
-    // Now we need to convert our serial port to a TTY device
-    // and the framebuffer to a framebuffer device, and a virtual TTY device
-    let serial_port = boot_info.serial.take().unwrap().as_port();
-    let serial_device = SerialDevice::from_initialized_port(serial_port);
-    let serial_id = runtime_info.devices.add_tty_device(Arc::new(Mutex::new(serial_device)));
-    WRITER.add_output(serial_id);
-
-    let (fb, writer) = boot_info.framebuffer.take().unwrap().to_inner();
-    let fb_id = runtime_info.devices.add_fb_device(Arc::new(Mutex::new(fb)));
-    let mut virt_fb = VirtFbTtyDevice::new(fb_id);
-    virt_fb.set_pos(writer.x_pos() as u32, writer.y_pos() as u32);
-    let virt_fb_id = runtime_info.devices.add_tty_device(Arc::new(Mutex::new(virt_fb)));
-    WRITER.add_output(virt_fb_id);
 
     unsafe {
         use crate::base::info::KERNEL_INFO;
         KERNEL_INFO = KernelInfo::Kernel(runtime_info);
     }
-    log::set_logger(&LOGGER).unwrap();
-    log::set_max_level(log::LevelFilter::Trace);
 
     log::debug!("Jumping to kernel main");
     jump_to_kernel_main(KernelParams { rsdp });
@@ -383,6 +366,16 @@ fn init_heap() {
     let boot_info = unsafe { boot_info_mut() };
     print!(boot_info, "[Boot] setting up initial kernel heap...\n");
     unsafe { crate::ALLOCATOR.init_generic(mappings::KERNEL_HEAP.as_mut_ptr(), boot_info.heap.1 as usize) };
+}
+
+fn init_logging() {
+    log::set_logger(&LOGGER).unwrap();
+    log::set_max_level(log::LevelFilter::Trace);
+    let boot_info = unsafe { boot_info_mut() };
+    let serial = boot_info.serial.take().unwrap();
+    WRITER.add_output(Box::new(serial));
+    let fb = boot_info.framebuffer.take().unwrap();
+    WRITER.add_output(Box::new(fb));
 }
 
 fn jump_to_kernel_main(params: KernelParams) -> ! {

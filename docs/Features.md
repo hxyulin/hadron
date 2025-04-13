@@ -11,3 +11,6 @@ Features of the kernel, updated live as the kernel is developed.
  - Fast frame allocation.
     - Frames are allocated from a bitmapped frame allocator, which is much faster than a traditional linked list / memory region allocator, which risk fragmentation.
     - However, this comes at the cost of a larger memory footprint (1 bit per frame = 1 byte 32768 frames), around 0.003% of the memory available.
+
+## Security
+ - The kernel is loaded at a random address (KASLR).

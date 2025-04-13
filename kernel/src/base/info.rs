@@ -5,7 +5,7 @@ use alloc::{boxed::Box, vec::Vec};
 use conquer_once::spin::OnceCell;
 use spin::{Mutex, RwLock};
 
-use crate::{boot::info::BootInfo, devices::DeviceManager, util::timer::Timer};
+use crate::{boot::info::BootInfo, util::timer::Timer};
 
 use super::{
     arch::x86_64::apic::Apics,
@@ -22,7 +22,6 @@ pub struct RuntimeInfo {
     ///
     /// This shouldn't be accessed directly
     pub page_table: Mutex<KernelPageTable>,
-    pub devices: DeviceManager,
     pub mmio: Mutex<KernelMmio>,
     pub pics: OnceCell<Mutex<Apics>>,
     pub timer: OnceCell<RwLock<Box<dyn Timer>>>,
@@ -37,7 +36,6 @@ impl RuntimeInfo {
         Self {
             frame_allocator,
             page_table,
-            devices: DeviceManager::new(),
             mmio: Mutex::new(KernelMmio::new()),
             pics: OnceCell::uninit(),
             timer: OnceCell::uninit(),

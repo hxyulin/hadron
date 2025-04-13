@@ -1,11 +1,8 @@
 use linked_list_allocator::LockedHeap;
 use x86_64::{PhysAddr, VirtAddr};
 
-use super::{
-    arch::memory_map::BootstrapMemoryMap,
-    drivers::{framebuffer::FramebufferWriter, serial::SerialWriter},
-};
-use crate::base::info::{KERNEL_INFO, KernelInfo};
+use super::arch::memory_map::BootstrapMemoryMap;
+use crate::{base::info::{KernelInfo, KERNEL_INFO}, util::logging::{serial::SerialWriter, framebuffer::FramebufferWriter}};
 
 pub struct BootInfo {
     pub serial: Option<SerialWriter>,

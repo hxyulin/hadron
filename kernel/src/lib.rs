@@ -11,8 +11,6 @@ use base::{arch::x86_64::acpi, mem::allocator::KernelAllocator};
 
 pub mod base;
 pub mod boot;
-pub mod devices;
-pub mod drivers;
 pub mod util;
 
 pub use boot::limine::limine_entry as kernel_entry;

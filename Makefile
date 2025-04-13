@@ -1,7 +1,7 @@
 CONFIG_FILE := kernel_conf.json
 MACHINE_TRIPLE := $(shell rustc -vV | grep host | awk '{ print $$2 }')
 
-.PHONY: build kernel run defconfig menuconfig clean info
+.PHONY: build kernel run defconfig menuconfig clean info doc clippy test
 build: kernel
 
 defconfig:
@@ -28,6 +28,9 @@ kernel: $(CONFIG_FILE)
 
 menuconfig:
 	cargo run -p menuconfig --target "$(MACHINE_TRIPLE)" -- $(CONFIG_FILE)
+
+doc:
+	# Unimplemented
 
 run:
 	# This is a hack to make sure the initrd is generated

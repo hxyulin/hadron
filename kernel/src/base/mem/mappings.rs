@@ -21,3 +21,4 @@ pub const MMIO_SPACE_SIZE: u64 = 0xFFFF_FFFF_8000_0000 - MMIO_SPACE.as_u64();
 /// Limine KASLR loads the kernel lowest at 0xFFFF_FFFF_8000_0000, up to 0xFFFF_FFFF_FFFF_FFFF
 pub const KERNEL_TEXT_START: VirtAddr = VirtAddr::new(0xFFFF_FFFF_8000_0000);
 pub const KERNEL_TEXT_END: VirtAddr = VirtAddr::new(0xFFFF_FFFF_FFFF_FFFF);
+pub const KERNEL_TEXT_SIZE: u64 = KERNEL_TEXT_END.as_u64() - KERNEL_TEXT_START.as_u64();
