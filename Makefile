@@ -30,6 +30,8 @@ menuconfig:
 	cargo run -p menuconfig --target "$(MACHINE_TRIPLE)" -- $(CONFIG_FILE)
 
 run:
+	# This is a hack to make sure the initrd is generated
+	touch initrd.img
 	@$(MAKE) -C kernel TARGET_FILE="../$(TARGET_FILE)" CONFIG_FILE="../$(CONFIG_FILE)" run
 
 test:

@@ -329,6 +329,9 @@ pub struct ModuleRequest {
     internal_modules: NonNull<NonNull<InternalModule>>,
 }
 
+unsafe impl Send for ModuleRequest {}
+unsafe impl Sync for ModuleRequest {}
+
 impl ModuleRequest {
     // TODO: Technically internal modules are revision 1, but we don't support revision 1.
     pub const LATEST_REVISION: u64 = 0;

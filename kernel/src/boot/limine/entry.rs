@@ -10,7 +10,7 @@ use x86_64::{
 use super::requests;
 use crate::{
     base::{
-        info::{kernel_info, KernelInfo, RuntimeInfo},
+        info::{KernelInfo, RuntimeInfo},
         mem::{
             frame_allocator::KernelFrameAllocator,
             mappings,
@@ -156,6 +156,11 @@ fn populate_boot_info() {
         boot_info,
         "[Boot] kernel loaded at {:#x}\n", boot_info.kernel_start_virt
     );
+    print!(boot_info, "[Boot] hhdm offset: {:#x}\n", boot_info.hhdm_offset);
+    let module = requests::MODULES.get_response().unwrap();
+    for module in module.modules() {
+        print!(boot_info, "[Boot] module: {:#?}\n", module);
+    }
     print!(boot_info, "[Boot] parsing memory map...\n");
     boot_info
         .memory_map

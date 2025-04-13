@@ -70,6 +70,25 @@ impl File {
     }
 }
 
+impl core::fmt::Debug for File {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("File")
+            .field("revision", &self.revision)
+            .field("address", &self.address)
+            .field("size", &self.size)
+            .field("path", &self.path())
+            .field("cmdline", &self.cmdline())
+            .field("media_type", &self.media_type())
+            .field("tftp_info", &self.tftp_info())
+            .field("partition_index", &self.partition_index)
+            .field("mbr_disk_id", &self.mbr_disk_id)
+            .field("gpt_disk_uuid", &self.gpt_disk_uuid)
+            .field("gpt_partition_uuid", &self.gpt_partition_uuid)
+            .field("part_uuid", &self.part_uuid)
+            .finish()
+    }
+}
+
 /// The media type of a file.
 #[repr(u32)]
 #[derive(Debug, Clone, Copy)]
@@ -89,6 +108,27 @@ struct Uuid {
     b: u16,
     c: u16,
     d: [u8; 8],
+}
+
+impl core::fmt::Debug for Uuid {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_tuple("Uuid")
+            .field(&format_args!(
+                "{:08x}-{:04x}-{:04x}-{:02x}{:02x}-{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}",
+                self.a,
+                self.b,
+                self.c,
+                self.d[0],
+                self.d[1],
+                self.d[2],
+                self.d[3],
+                self.d[4],
+                self.d[5],
+                self.d[6],
+                self.d[7]
+            ))
+            .finish()
+    }
 }
 
 /// An iterator over the files.

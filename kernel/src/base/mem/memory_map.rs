@@ -1,8 +1,5 @@
 use crate::{
-    base::{
-        info::kernel_info,
-        mem::{Arc, mappings},
-    },
+    base::mem::{Arc, mappings},
     boot::arch::memory_map::{BootstrapMemoryMap, FrameBasedAllocator, MemoryRegionType},
 };
 use alloc::vec::Vec;

@@ -1,4 +1,4 @@
-use alloc::{format, vec::Vec};
+use alloc::vec::Vec;
 use core::fmt::Write;
 use log::Log;
 use spin::RwLock;

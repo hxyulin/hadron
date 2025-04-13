@@ -4,8 +4,7 @@ use alloc::{
     alloc::{AllocError, Allocator},
     vec::Vec,
 };
-use limine::memory_map::MemoryMapEntryType;
-use linked_list_allocator::{Heap, LockedHeap};
+use linked_list_allocator::LockedHeap;
 use x86_64::{PhysAddr, VirtAddr};
 
 use crate::base::mem::Arc;

@@ -14,12 +14,8 @@ pub mod devices;
 pub mod drivers;
 pub mod util;
 
-#[cfg(any(kernel_bootloader = "limine", feature = "never"))]
 pub use boot::limine::limine_entry as kernel_entry;
 use x86_64::PhysAddr;
-
-#[cfg(not(any(kernel_bootloader = "limine", feature = "never")))]
-compile_error!("No bootloader selected");
 
 extern crate alloc;
 

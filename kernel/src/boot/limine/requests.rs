@@ -1,6 +1,5 @@
 use limine::request::{
-    BootloaderInfoRequest, ExecutableAddressRequest, ExecutableFileRequest, FirmwareTypeRequest, FramebufferRequest,
-    HhdmRequest, MemoryMapRequest, RequestsEndMarker, RequestsStartMarker, RsdpRequest, StackSizeRequest,
+    BootloaderInfoRequest, ExecutableAddressRequest, ExecutableFileRequest, FirmwareTypeRequest, FramebufferRequest, HhdmRequest, MemoryMapRequest, ModuleRequest, RequestsEndMarker, RequestsStartMarker, RsdpRequest, StackSizeRequest
 };
 
 #[used]
@@ -48,6 +47,10 @@ pub static EXECUTABLE_ADDRESS: ExecutableAddressRequest = ExecutableAddressReque
 #[used]
 #[unsafe(link_section = ".requests")]
 pub static RSDP: RsdpRequest = RsdpRequest::new();
+
+#[used]
+#[unsafe(link_section = ".requests")]
+pub static MODULES: ModuleRequest = ModuleRequest::new();
 
 #[used]
 #[unsafe(link_section = ".requests_end_marker")]

@@ -13,9 +13,6 @@ fn main() {
     println!("cargo:rerun-if-changed={}", config_file);
     let config = Config::from_file(&PathBuf::from(config_file));
 
-    let bootloader = config.boot_protocol.to_string().to_lowercase();
-    println!("cargo:rustc-cfg=kernel_bootloader=\"{}\"", bootloader);
-
     if config.smp {
         // We enable the configuration for SMP
     }

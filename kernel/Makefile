@@ -2,7 +2,7 @@ TARGET_FILE ?= ../targets/x86_64-unknown-hadron.json
 CONFIG_FILE ?= ../kernel_conf.json
 
 DEBUG := $(shell jq -r '.debug' $(CONFIG_FILE))
-RUSTFLAGS := --target $(TARGET_FILE)
+RUSTFLAGS := -Zbuild-std=core,alloc,compiler_builtins -Zbuild-std-features=compiler-builtins-mem --target $(TARGET_FILE)
 RUSTENV := CONFIG_FILE="$(CONFIG_FILE)"
 
 ifeq ($(DEBUG), false)
@@ -12,10 +12,10 @@ endif
 .PHONY: build run test clippy
 
 build:
-	cargo build -p hadron-kernel $(RUSTFLAGS)
+	RUSTFLAGS=$(RUSTCFLAGS) cargo build -p hadron-kernel $(RUSTFLAGS)
 
 run:
-	cargo run -p hadron-kernel $(RUSTFLAGS)
+	RUSTFLAGS=$(RUSTCFLAGS) cargo run -p hadron-kernel $(RUSTFLAGS)
 
 test:
 	@echo "TEST crate: hadron-kernel"
