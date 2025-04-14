@@ -43,9 +43,9 @@ impl KernelAllocator {
     ///
     /// # Safety
     /// This function is unsafe because it can cause UB if the heap is not valid, or called more than once.
-    pub unsafe fn init_generic(&self, heap_start: *mut u8, heap_end: usize) {
+    pub unsafe fn init_generic(&self, heap_start: *mut u8, heap_size: usize) {
         let mut generic = self.generic.lock();
-        unsafe { generic.init(heap_start, heap_end) };
+        unsafe { generic.init(heap_start, heap_size) };
     }
 
     /// Grows the generic allocator by the given size.
@@ -95,8 +95,8 @@ impl GenericAllocator {
     ///
     /// # Safety
     /// This function is unsafe because it can cause UB if the heap is not valid, or aclled more than once.
-    pub unsafe fn init(&mut self, heap_start: *mut u8, heap_end: usize) {
-        unsafe { self.alloc.init(heap_start, heap_end) };
+    pub unsafe fn init(&mut self, heap_start: *mut u8, heap_size: usize) {
+        unsafe { self.alloc.init(heap_start, heap_size) };
     }
 
     unsafe fn alloc(&mut self, layout: core::alloc::Layout) -> *mut u8 {

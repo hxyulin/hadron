@@ -6,7 +6,6 @@ use x86_64::{
 
 use page_table::PageTable;
 
-
 pub mod allocator;
 pub mod frame_allocator;
 pub mod mappings;

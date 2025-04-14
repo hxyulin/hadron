@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file, with their commit hash, date, and version number (if applicable).
 
+## 48009992f2e3d1d6ed130e114a5e78e9a243d268 (2025-04-14)
+ - Seperated BootInfo and RuntimeInfo into two structs.
+ - The logger now works universally using a fallback logger.
+
 ## 179527b2f3f281da42ad6312054bd4a64f090eba (2025-04-13)
  - Removed code for old device and driver models.
 

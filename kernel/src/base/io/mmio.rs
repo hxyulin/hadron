@@ -3,7 +3,7 @@ use x86_64::{
     structures::paging::{PageSize, PageTableFlags, PhysFrame, Size4KiB},
 };
 
-use crate::base::{info::kernel_info, mem::{map_page, mappings}};
+use crate::base::mem::{map_page, mappings};
 
 pub struct KernelMmio {
     offset: u64,
@@ -135,7 +135,7 @@ impl<T, const OFFSET: u64, const LEN: usize> OffsetMmioArray<T, OFFSET, LEN> {
     }
 }
 
-pub fn allocate_persistent_mmio(phys_addr: PhysAddr, size: u64) -> VirtAddr {
-    let mut mmio = kernel_info().mmio.lock();
+pub fn allocate_persistent(phys_addr: PhysAddr, size: u64) -> VirtAddr {
+    let mut mmio = super::MMIO.lock();
     mmio.allocate_persistant(phys_addr, size)
 }

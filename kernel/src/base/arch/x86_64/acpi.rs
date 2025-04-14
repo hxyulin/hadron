@@ -1,5 +1,5 @@
 use alloc::{boxed::Box, collections::btree_map::BTreeMap, sync::Arc};
-use spin::{Mutex, rwlock::RwLock};
+use spin::Mutex;
 use x86_64::{
     PhysAddr, VirtAddr,
     structures::paging::{Page, PageTableFlags, PhysFrame, frame::PhysFrameRangeInclusive, page::PageRangeInclusive},
@@ -9,10 +9,9 @@ use crate::{
     base::{
         arch::x86_64::apic::Apics,
         info::kernel_info,
-        io::mmio::allocate_persistent_mmio,
         mem::{map_page, unmap_page},
-        pci::PCIeDeviceInfo,
     },
+    dev::{DeviceTree, pci::PCIeConfigSpace},
     util::timer::hpet::Hpet,
 };
 use core::ptr::NonNull;
@@ -36,22 +35,16 @@ pub fn init(rsdp: PhysAddr) {
     parse_platform_info(&platform_info);
     match tables.find_table::<acpi::mcfg::Mcfg>() {
         Err(e) => log::warn!("ACPI: failed to parse MCFG table: {:?}", e),
-        Ok(mcfg) => for entry in mcfg.entries() {
-            let devices = unsafe { PCIeDeviceInfo::from_mcfg(entry) };
-            let mut pcie_devices = kernel_info().pci_devices.write();
-            pcie_devices.reserve(devices.len());
-            for device in devices {
-                pcie_devices.push((device, false));
-            }
-        }
+        Ok(mcfg) => parse_mcfg(&mcfg),
     }
 }
 
 fn parse_hpet_info(hpet: acpi::HpetInfo) {
-    let virt_addr = allocate_persistent_mmio(PhysAddr::new(hpet.base_address as u64), Hpet::SIZE_ALIGNED);
+    let virt_addr =
+        crate::base::io::mmio::allocate_persistent(PhysAddr::new(hpet.base_address as u64), Hpet::SIZE_ALIGNED);
     let mut hpet = Hpet::new(virt_addr, hpet);
     unsafe { hpet.init() };
-    kernel_info().timer.init_once(|| RwLock::new(Box::new(hpet)));
+    crate::util::timer::TIMER.write().replace(Box::new(hpet));
 }
 
 /// Parses the platform info and populates data structures
@@ -85,6 +78,20 @@ fn parse_platform_info(platform_info: &acpi::PlatformInfo<alloc::alloc::Global>)
             log::debug!("ACPI: processor info: processor ID {}, local APIC ID {}", id, apic_id);
         }
     }
+}
+
+fn parse_mcfg(mcfg: &acpi::mcfg::Mcfg) {
+    use alloc::vec::Vec;
+    // A vector of PCIeConfigSpaces
+    let mut spaces = Vec::new();
+    for entry in mcfg.entries() {
+        spaces.push(PCIeConfigSpace::identity_mapped(
+            PhysAddr::new(entry.base_address),
+            entry.bus_number_start..=entry.bus_number_end,
+        ));
+    }
+    let device_tree = DeviceTree::from_pcie(spaces);
+    core::mem::forget(crate::dev::DEVICES.replace(device_tree));
 }
 
 /// A mapper to map ACPI frames to logical addresses

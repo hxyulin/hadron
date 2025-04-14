@@ -1,3 +1,5 @@
+use spin::Mutex;
+
 pub mod mmio;
 
 /// Waits for the IO to finish.
@@ -10,3 +12,5 @@ pub unsafe fn io_wait() {
         core::arch::asm!("out dx, al", in("dx") 0x80, in("al") 0i8);
     }
 }
+
+pub static MMIO: Mutex<mmio::KernelMmio> = Mutex::new(mmio::KernelMmio::new());

@@ -1,9 +1,21 @@
 use noto_sans_mono_bitmap::{FontWeight, RasterHeight, RasterizedChar, get_raster, get_raster_width};
 use volatile::slice::VolatileSlice;
+use x86_64::{
+    VirtAddr,
+    structures::paging::{Page, PageSize, Size4KiB},
+};
+
+use super::{Writer, WriterType};
 
 pub struct FramebufferWriter {
     fb: Framebuffer,
     inner: FramebufferWriterInner,
+}
+
+impl Writer for FramebufferWriter {
+    fn get_type(&self) -> WriterType {
+        WriterType::Framebuffer
+    }
 }
 
 impl FramebufferWriter {
@@ -29,10 +41,6 @@ impl FramebufferWriter {
 
     pub fn fb_size(&self) -> usize {
         self.fb.buffer.len()
-    }
-
-    pub fn to_inner(self) -> (Framebuffer, FramebufferWriterInner) {
-        (self.fb, self.inner)
     }
 }
 
@@ -221,6 +229,23 @@ impl Framebuffer {
             for x in 0..self.info.width {
                 self.write_pixel(x, y, color);
             }
+        }
+    }
+}
+
+impl Drop for FramebufferWriter {
+    fn drop(&mut self) {
+        // TODO: We need to be careful we don't panic here, otherwise we can't print the panic info
+        use crate::base::mem::page_table::PageTable;
+        let addr = VirtAddr::new(self.fb_addr() as u64);
+        let pages = (self.fb_size() as u64).div_ceil(Size4KiB::SIZE);
+        let mut page_table = crate::base::mem::PAGE_TABLE.lock();
+        for i in 0..pages {
+            unsafe {
+                page_table.unmap(Page::<Size4KiB>::from_start_address_unchecked(
+                    addr + i * Size4KiB::SIZE,
+                ))
+            };
         }
     }
 }

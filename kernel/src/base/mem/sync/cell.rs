@@ -1,6 +1,5 @@
 use core::{cell::UnsafeCell, mem::MaybeUninit};
 
-
 /// A 'safe' cell, which allows for interior mutability
 ///
 /// But there are some restrictions:
@@ -31,7 +30,6 @@ impl<T> RacyCell<T> {
         unsafe { self.0.replace(value) }
     }
 }
-
 
 /// A `safe` cell that can be uninitialized
 pub struct UninitCell<T>(RacyCell<MaybeUninit<T>>);

@@ -1,15 +1,21 @@
 use alloc::{boxed::Box, vec::Vec};
 use core::fmt::Write;
 use log::Log;
-use spin::Mutex;
+use spin::{Mutex, MutexGuard};
 
 use super::timer::time_since_boot;
 
 pub mod framebuffer;
 pub mod serial;
 
-pub trait Writer: Write + Send + Sync {}
-impl<T: Write + Send + Sync> Writer for T {}
+pub enum WriterType {
+    Serial,
+    Framebuffer,
+}
+
+pub trait Writer: Write + Send + Sync {
+    fn get_type(&self) -> WriterType;
+}
 
 struct FallbackFnTable {
     write_str: fn(&str) -> core::fmt::Result,
@@ -44,6 +50,10 @@ impl KernelWriter {
             outputs: Mutex::new(Vec::new()),
             fallback: Mutex::new(FallbackFnTable::default()),
         }
+    }
+
+    pub fn outputs(&self) -> MutexGuard<'_, Vec<Box<dyn Writer>>> {
+        self.outputs.lock()
     }
 
     pub fn add_output(&self, output: Box<dyn Writer>) {

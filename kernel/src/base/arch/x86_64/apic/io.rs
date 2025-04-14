@@ -1,7 +1,7 @@
-use x86_64::VirtAddr;
-use core::fmt::Debug;
-use alloc::vec::Vec;
 use crate::base::io::mmio::OffsetMmio;
+use alloc::vec::Vec;
+use core::fmt::Debug;
+use x86_64::VirtAddr;
 
 #[repr(u8)]
 #[derive(Debug, Clone, Copy)]
@@ -217,9 +217,7 @@ impl IoApic {
     pub fn read_entry(&self, index: usize) -> IoApicEntry {
         let data_low = self.read_reg(Self::table_entry(index) as u32);
         let data_high = self.read_reg(Self::table_entry(index) as u32 + 1);
-        unsafe {
-            core::mem::transmute::<u64, IoApicEntry>(data_low as u64 | (data_high as u64) << 32)
-        }
+        unsafe { core::mem::transmute::<u64, IoApicEntry>(data_low as u64 | (data_high as u64) << 32) }
     }
 }
 

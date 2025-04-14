@@ -3,9 +3,9 @@ pub mod rtc;
 
 pub use core::time::Duration;
 
+use alloc::boxed::Box;
 use rtc::UtcTime;
-
-use crate::base::info::kernel_info;
+use spin::RwLock;
 
 pub struct TimerTicks(pub u64);
 
@@ -16,11 +16,7 @@ impl TimerTicks {
 }
 
 pub fn time_since_boot() -> Duration {
-    kernel_info()
-        .timer
-        .get()
-        .map(|t| t.read().time_since_boot())
-        .unwrap_or_default()
+    TIMER.read().as_ref().map(|t| t.time_since_boot()).unwrap_or_default()
 }
 
 pub fn current_time() -> UtcTime {
@@ -32,3 +28,5 @@ pub trait Timer: Send + Sync {
     fn frequency(&self) -> u64;
     fn time_since_boot(&self) -> Duration;
 }
+
+pub static TIMER: RwLock<Option<Box<dyn Timer>>> = RwLock::new(None);

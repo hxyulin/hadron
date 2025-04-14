@@ -1,4 +1,7 @@
-use core::{marker::Unsize, ops::{CoerceUnsized, DispatchFromDyn}};
+use core::{
+    marker::Unsize,
+    ops::{CoerceUnsized, DispatchFromDyn},
+};
 
 use alloc::alloc::{Allocator, Global};
 

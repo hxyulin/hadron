@@ -16,8 +16,6 @@ pub fn write_fmt(args: core::fmt::Arguments) {
     SERIAL_PORT.lock().write_fmt(args).unwrap();
 }
 
-pub fn init() {}
-
 pub fn panic(info: &core::panic::PanicInfo) -> ! {
     println!("{}[fail]{}", ansi::RED, ansi::RESET);
     println!("{}", info);
@@ -25,15 +23,26 @@ pub fn panic(info: &core::panic::PanicInfo) -> ! {
     unreachable!()
 }
 
-/// Declare a test entry function.
-/// And specifies features for custom test harness
-/// Should placed at the top of the crate
 #[macro_export]
 macro_rules! test_entry {
     ($name: ident) => {
         #[unsafe(no_mangle)]
         pub extern "C" fn $name() -> ! {
-            $crate::init();
+            #[cfg(test)]
+            test_main();
+            $crate::exit_qemu($crate::ExitCode::Success);
+            panic!("test_entry_inner should not exit");
+        }
+
+        #[panic_handler]
+        fn panic_handler(info: &core::panic::PanicInfo) -> ! {
+            $crate::panic(info);
+        }
+    };
+    ($name: ident, $init_fn: expr) => {
+        #[unsafe(no_mangle)]
+        pub extern "C" fn $name() -> ! {
+            $init_fn();
             #[cfg(test)]
             test_main();
             $crate::exit_qemu($crate::ExitCode::Success);

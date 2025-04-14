@@ -1,5 +1,6 @@
+use super::page_table::PageTable;
 use crate::{
-    base::mem::{sync::Arc, mappings},
+    base::mem::{mappings, sync::Arc},
     boot::arch::memory_map::{BootstrapMemoryMap, FrameBasedAllocator, MemoryRegionType},
 };
 use alloc::vec::Vec;
@@ -7,7 +8,6 @@ use x86_64::{
     PhysAddr,
     structures::paging::{FrameAllocator, Page, PageSize, PageTableFlags, Size4KiB},
 };
-use super::page_table::PageTable;
 
 use super::page_table::KernelPageTable;
 
@@ -117,7 +117,6 @@ impl MemoryRegion {
     pub(super) fn deallocate(&mut self, idx: usize) {
         self.bitmap.set(idx, false);
     }
-
 
     /// Resizes the bitmap to the given size.
     ///
@@ -237,4 +236,3 @@ impl MemoryRegionTag {
         }
     }
 }
-

@@ -1,6 +1,8 @@
 use core::fmt::Write;
 use uart_16550::SerialPort;
 
+use super::{Writer, WriterType};
+
 #[derive(Debug)]
 pub struct SerialWriter {
     port: SerialPort,
@@ -19,6 +21,12 @@ impl SerialWriter {
 
     pub fn as_port(self) -> SerialPort {
         self.port
+    }
+}
+
+impl Writer for SerialWriter {
+    fn get_type(&self) -> WriterType {
+        WriterType::Serial
     }
 }
 
