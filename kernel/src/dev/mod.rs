@@ -1,169 +1,25 @@
 //! Devices
+//!
+//! The device / driver model is inspired by the Linux kernel
+//! The device registry contains all devices that are connected to the system, each bus has its own
+//! tree of devices.
+//!
+//! The drivers are loaded at boot time, and are responsible for initializing the devices. Drivers
+//! can be initialized from PCI devices, and will create a [`Devoce`](crate::dev::drivers::Device)
+//! for each device.
 
-use alloc::vec::Vec;
-use drivers::LoadedDriver;
+use core::{alloc::Allocator, ptr::NonNull};
 
 use crate::base::mem::sync::UninitMutex;
 
-pub mod drivers;
+pub mod gpu;
 pub mod helpers;
 pub mod pci;
 
-pub static DEVICES: UninitMutex<DeviceTree> = UninitMutex::uninit();
-
-#[derive(Debug)]
-pub struct DeviceTree {
-    root: DeviceTreeNode,
-}
-
-impl DeviceTree {
-    pub fn iter(&self) -> DeviceTreeIter {
-        DeviceTreeIter::new(&self.root)
-    }
-}
-
-pub struct DeviceTreeIter<'a> {
-    stack: Vec<&'a DeviceTreeNode>,
-}
-
-impl<'a> DeviceTreeIter<'a> {
-    pub fn new(root: &'a DeviceTreeNode) -> Self {
-        use alloc::vec;
-        Self { stack: vec![root] }
-    }
-}
-
-impl<'a> Iterator for DeviceTreeIter<'a> {
-    type Item = &'a DeviceFunction;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        while let Some(node) = self.stack.pop() {
-            match node {
-                DeviceTreeNode::Bus(bus) => {
-                    for device in &bus.devices {
-                        self.stack.push(device);
-                    }
-                }
-                DeviceTreeNode::Device(device) => {
-                    return Some(&device.functions[0]);
-                }
-            }
-        }
-        None
-    }
-}
-
-pub enum DeviceTreeNode {
-    Bus(BusDevice),
-    Device(Device),
-}
-
-#[derive(Debug)]
-pub struct BusDevice {
-    bus: u8,
-    devices: Vec<DeviceTreeNode>,
-}
-
-#[derive(Debug)]
-pub struct Device {
-    device: u8,
-    functions: Vec<DeviceFunction>,
-}
-
-impl Device {
-    pub const fn empty(device: u8) -> Self {
-        Self {
-            device,
-            functions: Vec::new(),
-        }
-    }
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct DeviceId(u32);
-
-impl DeviceId {
-    pub const fn new(vendor_id: u16, device_id: u16) -> Self {
-        Self((vendor_id as u32) << 16 | device_id as u32)
-    }
-
-    pub const fn vendor_id(&self) -> u16 {
-        (self.0 >> 16) as u16
-    }
-
-    pub const fn device_id(&self) -> u16 {
-        self.0 as u16
-    }
-}
-
-impl core::fmt::Debug for DeviceId {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{:#x}:{:#x}", self.vendor_id(), self.device_id())
-    }
-}
-
-pub struct DeviceFunction {
-    pub inner: DeviceFunctionInner,
-    pub driver: Option<&'static LoadedDriver>,
-}
-
-pub struct DeviceFunctionInner {
-    function: u8,
-    vendor_id: u16,
-    device_id: u16,
-    revision: u8,
-    class: DeviceClass,
-    bars: [u32; 6],
-}
-
-impl DeviceFunctionInner {
-    pub fn id(&self) -> DeviceId {
-        DeviceId::new(self.vendor_id, self.device_id)
-    }
-
-    pub fn class(&self) -> DeviceClass {
-        self.class
-    }
-}
-
-impl DeviceFunction {
-    pub fn id(&self) -> DeviceId {
-        self.inner.id()
-    }
-}
-
-impl core::fmt::Debug for DeviceTreeNode {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            DeviceTreeNode::Bus(bus) => bus.fmt(f),
-            DeviceTreeNode::Device(device) => device.fmt(f),
-        }
-    }
-}
-
-impl core::fmt::Debug for DeviceFunctionInner {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.debug_struct("DeviceFunction")
-            .field("function", &self.function)
-            .field("vendor_id", &format_args!("{:#x}", self.vendor_id))
-            .field("device_id", &format_args!("{:#x}", self.device_id))
-            .field("revision", &self.revision)
-            .field("class", &self.class)
-            .field("bars", &self.bars)
-            .finish()
-    }
-}
-
-impl core::fmt::Debug for DeviceFunction {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.debug_struct("DeviceFunction")
-            .field("inner", &self.inner)
-            .finish()
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
+#[repr(u8)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum DeviceClass {
+    /// Unclassified device
     Unclassified,
     MassStorageController,
     NetworkController,
@@ -185,7 +41,48 @@ pub enum DeviceClass {
     ProcessingAccelerator,
     NonEssentialInstrumentation,
     Coprocessor,
+    /// Unassigned device
     Unassigned,
     Unknown(u8),
 }
 
+/// The device registry
+///
+/// See [`DeviceRegistry`](crate::dev::DeviceRegistry) for more information
+pub static DEVICES: UninitMutex<DeviceRegistry> = UninitMutex::uninit();
+
+/// A centralized registry of devices
+///
+/// This stores all devices that are connected to the system
+pub struct DeviceRegistry {
+    /// Represents devices on the PCI bus
+    pub pci: pci::PCIDeviceTree,
+}
+
+/// The base device
+#[derive(Debug)]
+pub struct Device {
+    /// A managed allocator for the device
+    ///
+    /// All allocations made by the device will be allocated from this allocator
+    /// This ensures that memory allocated will be deallocated when the device is dropped
+    allocator: DeviceAllocator,
+
+    /// Driver data for the device
+    ///
+    /// Drivers should only store their data here, and avoid using any state anywhere else
+    driver_data: Option<NonNull<core::ffi::c_void>>,
+}
+
+#[derive(Debug)]
+struct DeviceAllocator {}
+
+unsafe impl Allocator for DeviceAllocator {
+    fn allocate(&self, layout: core::alloc::Layout) -> Result<core::ptr::NonNull<[u8]>, core::alloc::AllocError> {
+        alloc::alloc::Global.allocate(layout)
+    }
+
+    unsafe fn deallocate(&self, ptr: core::ptr::NonNull<u8>, layout: core::alloc::Layout) {
+        unsafe { alloc::alloc::Global.deallocate(ptr, layout) }
+    }
+}

@@ -1,6 +1,6 @@
 use core::task::Waker;
 
-use alloc::{borrow::ToOwned, collections::BTreeMap, sync::Arc, task::Wake};
+use alloc::{collections::BTreeMap, sync::Arc, task::Wake};
 use crossbeam::queue::ArrayQueue;
 
 use super::{KernelTask, KernelTaskId};
@@ -68,7 +68,7 @@ impl BasicExecutor {
             let mut ctx = Context::from_waker(waker);
             use core::task::{Context, Poll};
             match task.poll(&mut ctx) {
-                Poll::Ready(result) => {
+                Poll::Ready(_) => {
                     self.tasks.remove(&task_id);
                     self.waker_cache.remove(&task_id);
                 }

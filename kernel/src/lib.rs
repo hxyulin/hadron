@@ -20,12 +20,7 @@
 // We can remove them once they become stable
 #![feature(unsize, dispatch_from_dyn, coerce_unsized)]
 
-use core::ops::Deref;
-
-use base::{
-    arch::x86_64::acpi,
-    mem::{allocator::KernelAllocator, sync::Arc},
-};
+use base::{arch::x86_64::acpi, mem::allocator::KernelAllocator};
 
 pub mod base;
 pub mod boot;
@@ -33,7 +28,6 @@ pub mod dev;
 pub mod util;
 
 pub use boot::limine::limine_entry as kernel_entry;
-use dev::{DeviceClass, DeviceTree};
 use x86_64::PhysAddr;
 
 extern crate alloc;
@@ -51,10 +45,6 @@ pub struct KernelParams {
 /// the bootloader specific code.
 ///
 /// This function is only called once.
-/// When this function is called, the `kernel_info` is setup with the correct information.
-/// See [`RuntimeInfo`](crate::base::info::RuntimeInfo) for more information.
-/// The heap is also setup, but the size can be non standard.
-/// The logger should be set up, and the TTY devices should be added to the logger.
 #[unsafe(no_mangle)]
 extern "Rust" fn kernel_main(params: KernelParams) -> ! {
     log::debug!("initializing kernel");
@@ -79,43 +69,6 @@ extern "Rust" fn kernel_main(params: KernelParams) -> ! {
 /// This involes:
 /// - Finding the drivers for the devices
 fn init_drivers() {
-    use dev::drivers::BUILTIN_DRIVERS;
-    use util::logging::{WRITER, Writer, WriterType};
-    let devices = crate::dev::DEVICES.lock();
-    let mut has_framebuffer = WRITER
-        .outputs()
-        .iter()
-        .any(|output| matches!(output.get_type(), WriterType::Framebuffer));
-
-    log::debug!("DRV: initializing drivers");
-    for device in devices.iter() {
-        let id = device.id();
-        for driver in BUILTIN_DRIVERS {
-            if !driver.matches(&id) {
-                continue;
-            }
-            let driver = driver.load();
-
-            log::debug!("DRV: loading driver {} for {:?}", driver.name, device.inner.id());
-            if !driver.probe(&device.inner) {
-                log::error!("DRV: device id matches but probe failed");
-            }
-
-            // If we have a valid display driver, we need to remove the framebuffer writer, otherwise
-            // the framebuffer will be overwritten by the driver.
-            if has_framebuffer && matches!(device.inner.class(), DeviceClass::DisplayController) {
-                log::debug!("DRV: found display controller, removing framebuffer writer");
-                WRITER.outputs().retain(|output| !matches!(output.get_type(), WriterType::Framebuffer));
-            }
-
-            if !driver.init(&device.inner) {
-                log::error!("DRV: driver failed to initialize");
-            }
-
-            log::debug!("DRV: driver initialized");
-        }
-    }
-
     log::debug!("CPU Features: {:#?}", crate::util::cpu::cpu_features());
 }
 

@@ -115,21 +115,24 @@ bitflags::bitflags! {
     }
 }
 
-struct PCIeFunction {
+/// A PCIe function
+///
+/// This is named `PCIeDevice` because functions are usually referred to as devices
+struct PCIeDevice {
     /// The base address of the PCI function
     base: VirtAddr,
 }
 
-impl PCIeFunction {
+impl PCIeDevice {
     pub const fn new(base: VirtAddr) -> Self {
         Self { base }
     }
 
-    pub fn read<T>(&self, offset: PCIEFunctionOffset) -> T {
+    pub fn read<T>(&self, offset: PCIeFunctionOffset) -> T {
         unsafe { self.read_internal::<T>(offset as u16) }
     }
 
-    pub fn write<T>(&mut self, offset: PCIEFunctionOffset, value: T) {
+    pub fn write<T>(&mut self, offset: PCIeFunctionOffset, value: T) {
         unsafe { self.write_internal::<T>(offset as u16, value) };
     }
 
@@ -141,15 +144,27 @@ impl PCIeFunction {
         unsafe { (self.base + offset as u64).as_mut_ptr::<T>().write_volatile(value) }
     }
 
-    pub fn device_class(&self) -> DeviceClass {
-        let class = self.read::<u8>(PCIEFunctionOffset::Class);
+    pub fn class(&self) -> DeviceClass {
+        let class = self.read::<u8>(PCIeFunctionOffset::Class);
         DeviceClass::from_u8(class)
+    }
+
+    pub fn subclass(&self) -> u8 {
+        self.read::<u8>(PCIeFunctionOffset::Subclass)
+    }
+
+    pub fn subvendor(&self) -> u16 {
+        self.read::<u16>(PCIeFunctionOffset::SubsystemVendorID)
+    }
+
+    pub fn subsystem(&self) -> u16 {
+        self.read::<u16>(PCIeFunctionOffset::SubsystemID)
     }
 
     pub fn capabilities(&self) -> PCICapabilities {
         let mut capabilities = PCICapabilities::empty();
 
-        let mut current_offset = self.read::<u16>(PCIEFunctionOffset::CapabilitiesPointer);
+        let mut current_offset = self.read::<u16>(PCIeFunctionOffset::CapabilitiesPointer);
 
         while current_offset != 0 {
             // Read the Capability ID and the Next Capability Pointer
@@ -174,7 +189,7 @@ impl PCIeFunction {
         let mut bars = [0; 6];
         for i in 0..6 {
             // SAFETY: The offset is valid because it is within the range of the function
-            let addr = unsafe { self.read_internal::<u32>(PCIEFunctionOffset::Bar0 as u16 + i * 4) };
+            let addr = unsafe { self.read_internal::<u32>(PCIeFunctionOffset::Bar0 as u16 + i * 4) };
             // When reading from a BAR, we need mask out the lower bits
             bars[i as usize] = addr & !0xF;
         }
@@ -184,7 +199,7 @@ impl PCIeFunction {
 
 #[repr(u16)]
 #[derive(Debug, Clone, Copy)]
-pub enum PCIEFunctionOffset {
+pub enum PCIeFunctionOffset {
     VendorID = 0x00,
     DeviceID = 0x02,
     Command = 0x04,
@@ -272,11 +287,11 @@ impl DeviceClass {
     }
 }
 
-impl crate::dev::DeviceTree {
+impl super::PCIDeviceTree {
     pub fn from_pcie(spaces: Vec<PCIeConfigSpace>) -> Self {
         let root_bus = parse_bus(spaces.as_slice(), &PCIeBus::new(0));
         Self {
-            root: crate::dev::DeviceTreeNode::Bus(root_bus),
+            root: super::PCIDeviceTreeNode::Bus(root_bus),
         }
     }
 }
@@ -293,42 +308,61 @@ fn get_bus_base(spaces: &[PCIeConfigSpace], bus: &PCIeBus) -> VirtAddr {
     panic!("PCI: bus {} not found", bus.bus);
 }
 
-fn parse_bus(spaces: &[PCIeConfigSpace], bus: &PCIeBus) -> crate::dev::BusDevice {
+fn parse_bus(spaces: &[PCIeConfigSpace], bus: &PCIeBus) -> super::PCIBusDevice {
     let base = get_bus_base(spaces, bus);
     let mut devices = Vec::new();
     for i in 0u64..32u64 {
-        let mut device = crate::dev::Device::empty(i as u8);
+        let mut device = super::PCIDevice::empty(i as u8);
         let device_addr = base + i * DEVICE_SIZE;
         // Addr of device = addr of function 0
-        let header_type = PCIeFunction::new(device_addr).read::<u8>(PCIEFunctionOffset::HeaderType);
+        let header_type = PCIeDevice::new(device_addr).read::<u8>(PCIeFunctionOffset::HeaderType);
         // Optimization - Branchless version for:
         // if (header_type & 0x80) == 0 { 1 } else { 8 }
         let functions = ((header_type >> 7) & 1) as u64 * 7 + 1;
         for i in 0..functions {
-            let function = PCIeFunction::new(device_addr + i * 4096);
-            let vendor_id = function.read::<u16>(PCIEFunctionOffset::VendorID);
+            let function = PCIeDevice::new(device_addr + i * 4096);
+            let vendor = function.read::<u16>(PCIeFunctionOffset::VendorID);
             // 0xFFFF means that the function is not present
-            if vendor_id == 0xFFFF {
+            if vendor == 0xFFFF {
                 continue;
             }
-            let device_id = function.read::<u16>(PCIEFunctionOffset::DeviceID);
-            let revision = function.read::<u8>(PCIEFunctionOffset::RevisionID);
+            let device_id = function.read::<u16>(PCIeFunctionOffset::DeviceID);
+            let revision = function.read::<u8>(PCIeFunctionOffset::RevisionID);
+            let class = function.class();
+            let subclass = function.subclass();
+            let subvendor = function.subvendor();
+            let subdevice = function.subsystem();
 
-            device.functions.push(crate::dev::DeviceFunction {
-                inner: crate::dev::DeviceFunctionInner {
-                    function: i as u8,
-                    vendor_id,
-                    device_id,
-                    revision,
-                    class: function.device_class(),
+            if class == DeviceClass::BridgeDevice && subclass == 0x04 {
+                log::warn!("PCI: found PCI-to-PCI bridge");
+            }
+
+            device.functions.push((
+                super::PCIDev {
                     bars: function.get_bars(),
+                    revision,
+                    dev: crate::dev::Device {
+                        allocator: crate::dev::DeviceAllocator {},
+                        driver_data: None,
+                    },
                 },
-                driver: None,
-            });
+                super::PCIDeviceId {
+                    vendor,
+                    device: device_id,
+                    subvendor,
+                    subdevice,
+                    class,
+                    subclass,
+                    ..Default::default()
+                },
+            ));
         }
         if !device.functions.is_empty() {
-            devices.push(crate::dev::DeviceTreeNode::Device(device));
+            devices.push(super::PCIDeviceTreeNode::Device(device));
         }
     }
-    crate::dev::BusDevice { bus: bus.bus, devices }
+    super::PCIBusDevice {
+        bus_number: bus.bus,
+        devices,
+    }
 }

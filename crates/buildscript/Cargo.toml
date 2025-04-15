@@ -1,0 +1,12 @@
+[package]
+name = "buildscript"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+
+[build-dependencies]
+menuconfig.workspace = true
+log.workspace = true
+
+simple_logger = "5.0.0"

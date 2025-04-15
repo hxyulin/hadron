@@ -33,6 +33,10 @@ impl std::fmt::Display for Target {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
     pub target: Target,
+    /// Whether to enable serial output
+    pub serial: bool,
+    /// Whether to enable backtraces
+    pub backtrace: bool,
     pub debug: bool,
     pub smp: bool,
 }
@@ -42,6 +46,8 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             target: Target::X86_64,
+            serial: false,
+            backtrace: false,
             debug: false,
             smp: false,
         }
@@ -50,22 +56,25 @@ impl Default for Config {
 
 impl Config {
     pub fn from_file(path: &PathBuf) -> Self {
-        let file = std::fs::File::open(path).unwrap();
-        serde_json::from_reader(file).unwrap()
+        let contents = std::fs::read_to_string(path).unwrap();
+        toml::from_str(&contents).unwrap()
     }
 }
 
-pub fn generate_defconfig(path: &PathBuf) {
+pub fn generate_defconfig(path: &PathBuf) -> Result<(), std::io::Error> {
     println!("Writing defconfig to {}", path.display());
-    write_config(path, &Config::default());
+    write_config(path, &Config::default())
 }
 
-pub fn write_config(path: &PathBuf, config: &Config) {
+pub fn write_config(path: &PathBuf, config: &Config) -> Result<(), std::io::Error> {
+    use std::io::Write;
     let mut file = std::fs::OpenOptions::new()
         .write(true)
         .create(true)
         .truncate(true)
         .open(path)
         .unwrap();
-    serde_json::to_writer_pretty(&mut file, &config).unwrap();
+    let contents = toml::to_string_pretty(config).expect("Failed to serialize config");
+    file.write_all(contents.as_bytes())?;
+    Ok(())
 }

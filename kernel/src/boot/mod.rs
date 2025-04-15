@@ -7,6 +7,7 @@ static IS_BOOT: AtomicBool = AtomicBool::new(true);
 pub mod limine;
 
 pub mod arch;
+pub mod ctor;
 pub mod info;
 
 pub fn boot_panic(info: &PanicInfo) -> ! {

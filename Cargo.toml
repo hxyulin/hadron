@@ -1,13 +1,18 @@
 [workspace]
 resolver = "2"
 members = [
+    "crates/buildscript",
+    "crates/driver-macros",
+    "crates/hadron-macros",
     "crates/hadron-test",
     "crates/limine",
-    "crates/menuconfig", "crates/no-alloc",
+    "crates/menuconfig",
+    "crates/no-alloc",
     "crates/volatile",
+    "drivers",
     "kernel",
 ]
-default-members = ["kernel"]
+default-members = ["crates/buildscript"]
 exclude = ["util"]
 
 [workspace.package]

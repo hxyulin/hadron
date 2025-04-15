@@ -1,0 +1,6 @@
+[package]
+name = "hadron-macros"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]

@@ -166,8 +166,9 @@ fn populate_boot_info() {
     boot_info.kernel_start_virt = VirtAddr::new(kernel_addr.virtual_address);
     log::debug!("BOOT: kernel loaded at {:#x}", boot_info.kernel_start_virt);
     log::debug!("BOOT: hhdm offset: {:#x}", boot_info.hhdm_offset);
-    let _module = requests::MODULES.get_response().unwrap();
+
     // TODO: parse modules
+
     log::debug!("BOOT: parsing memory map...");
     boot_info
         .memory_map
@@ -324,6 +325,9 @@ fn allocate_pages() -> ! {
 fn limine_stage_2() -> ! {
     init_heap();
     init_logging();
+
+    log::debug!("BOOT: calling constructors...");
+    crate::boot::ctor::init();
 
     let boot_info = unsafe { boot_info_mut() };
     log::debug!("BOOT: constructing page tables...");

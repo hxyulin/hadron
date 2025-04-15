@@ -1,3 +1,4 @@
+/* Linker Script for Hadron Drivers (x86_64) */
 OUTPUT_FORMAT(elf64-x86-64)
 ENTRY(kernel_entry)
 
@@ -16,14 +17,12 @@ PHDRS
 
 SECTIONS
 {
-    _kernel_text_start = .;
     .text : {
         *(.text .text.*)
     } :text
 
     /* Move to the next memory page for .rodata */
     . = ALIGN(CONSTANT(MAXPAGESIZE));
-    _kernel_data_start = .;
 
     .dynsym : { *(.dynsym .dynsym.*) } :rodata
     .gnu.hash : { *(.gnu.hash .gnu.hash.*) } :rodata
@@ -86,7 +85,6 @@ SECTIONS
     } :bss
 
     . = ALIGN(CONSTANT(MAXPAGESIZE));
-    _kernel_end = .;
 
     /DISCARD/ : {
         *(.note .note.*)

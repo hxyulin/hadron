@@ -1,9 +1,2 @@
 # Rust build files
 /target
-
-# Makefile build files
-/.tmp
-/initrd.img
-
-# Kernel config
-kernel_conf.json

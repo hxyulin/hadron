@@ -11,7 +11,10 @@ use crate::{
         info::kernel_info,
         mem::{map_page, unmap_page},
     },
-    dev::{DeviceTree, pci::PCIeConfigSpace},
+    dev::{
+        DeviceRegistry,
+        pci::{PCIDeviceTree, PCIeConfigSpace},
+    },
     util::timer::hpet::Hpet,
 };
 use core::ptr::NonNull;
@@ -90,8 +93,9 @@ fn parse_mcfg(mcfg: &acpi::mcfg::Mcfg) {
             entry.bus_number_start..=entry.bus_number_end,
         ));
     }
-    let device_tree = DeviceTree::from_pcie(spaces);
-    core::mem::forget(crate::dev::DEVICES.replace(device_tree));
+    let device_tree = PCIDeviceTree::from_pcie(spaces);
+    let devices = DeviceRegistry { pci: device_tree };
+    core::mem::forget(crate::dev::DEVICES.replace(devices));
 }
 
 /// A mapper to map ACPI frames to logical addresses

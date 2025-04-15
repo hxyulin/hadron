@@ -1,0 +1,12 @@
+[package]
+name = "hadron-drivers"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+crate-type = ["staticlib"]
+test = false
+bench = false
+
+[dependencies]
+log.workspace = true

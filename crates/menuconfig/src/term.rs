@@ -1,4 +1,4 @@
-use std::str::FromStr;
+use std::{collections::HashMap, str::FromStr};
 
 use crossterm::event::{Event, KeyCode, KeyEvent};
 use ratatui::{prelude::*, widgets::*};
@@ -236,13 +236,19 @@ impl ConfigItem for ConfigSection {
 
 #[derive(Default)]
 struct ConfigMenu {
+    item_ids: HashMap<&'static str, usize>,
     items: Vec<Box<dyn ConfigItem>>,
     selected: usize,
 }
 
 impl ConfigMenu {
-    fn add_item(&mut self, item: Box<dyn ConfigItem>) {
+    fn add_item(&mut self, name: &'static str, item: Box<dyn ConfigItem>) {
+        self.item_ids.insert(name, self.items.len());
         self.items.push(item);
+    }
+
+    fn get_item(&self, name: &'static str) -> Option<&Box<dyn ConfigItem>> {
+        self.items.get(*self.item_ids.get(name)?)
     }
 
     fn on_event(&mut self, event: KeyEvent) -> bool {
@@ -315,16 +321,36 @@ pub fn run(config: Config) -> Result<Config, Box<dyn std::error::Error>> {
         selected_target,
     )));
 
-    menu.add_item(Box::new(boot_section));
+    menu.add_item("boot", Box::new(boot_section));
 
-    menu.add_item(Box::new(ConfigToggle {
-        name: "Enable debug".to_string(),
-        value: config.debug,
-    }));
-    menu.add_item(Box::new(ConfigToggle {
-        name: "Enable SMP".to_string(),
-        value: config.smp,
-    }));
+    menu.add_item(
+        "debug",
+        Box::new(ConfigToggle {
+            name: "Enable debug".to_string(),
+            value: config.debug,
+        }),
+    );
+    menu.add_item(
+        "serial",
+        Box::new(ConfigToggle {
+            name: "Enable serial".to_string(),
+            value: config.serial,
+        }),
+    );
+    menu.add_item(
+        "backtrace",
+        Box::new(ConfigToggle {
+            name: "Enable backtrace".to_string(),
+            value: config.backtrace,
+        }),
+    );
+    menu.add_item(
+        "smp",
+        Box::new(ConfigToggle {
+            name: "Enable SMP".to_string(),
+            value: config.smp,
+        }),
+    );
 
     loop {
         terminal.draw(|f| {
@@ -374,7 +400,9 @@ pub fn run(config: Config) -> Result<Config, Box<dyn std::error::Error>> {
 
     Ok(Config {
         target: Target::from_str(&boot_options[0].as_string()).unwrap(),
-        debug: menu.items[1].get_value().as_bool(),
-        smp: menu.items[2].get_value().as_bool(),
+        debug: menu.get_item("debug").unwrap().get_value().as_bool(),
+        serial: menu.get_item("serial").unwrap().get_value().as_bool(),
+        backtrace: menu.get_item("backtrace").unwrap().get_value().as_bool(),
+        smp: menu.get_item("smp").unwrap().get_value().as_bool(),
     })
 }
