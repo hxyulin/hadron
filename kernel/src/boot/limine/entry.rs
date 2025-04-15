@@ -1,14 +1,23 @@
 use core::fmt::Arguments;
 
 use alloc::boxed::Box;
+use hadron_base::base::mem::allocator::FrameBasedAllocator;
 use x86_64::{
     PhysAddr, VirtAddr,
     structures::paging::{FrameAllocator, PageSize, PageTableFlags, PhysFrame, Size4KiB},
 };
 
 use super::requests;
-use crate::{
-    ALLOCATOR, KernelParams,
+use crate::ALLOCATOR;
+use crate::boot::{
+    arch::{
+        memory_map::{MemoryMapEntry, MemoryRegionType},
+        x86_64::{frame_allocator::BasicFrameAllocator, page_table::BootstrapPageTable},
+    },
+    info::boot_info_mut,
+};
+use hadron_base::{
+    KernelParams,
     base::mem::{
         FRAME_ALLOCATOR, PAGE_TABLE,
         frame_allocator::KernelFrameAllocator,
@@ -16,13 +25,6 @@ use crate::{
         memory_map::{MemoryMap, MemoryRegionTag},
         page_table::KernelPageTable,
         sync::RacyCell,
-    },
-    boot::{
-        arch::{
-            memory_map::{FrameBasedAllocator, MemoryMapEntry, MemoryRegionType},
-            x86_64::{frame_allocator::BasicFrameAllocator, page_table::BootstrapPageTable},
-        },
-        info::boot_info_mut,
     },
     util::{
         logging::{
@@ -33,6 +35,7 @@ use crate::{
         machine_state::MachineState,
     },
 };
+
 static SERIAL: RacyCell<Option<SerialWriter>> = RacyCell::new(None);
 static FRAMEBUFFER: RacyCell<Option<FramebufferWriter>> = RacyCell::new(None);
 
@@ -72,7 +75,7 @@ pub fn limine_print_panic(info: &core::panic::PanicInfo) {
     // we try to notify the user about the panic
     let machine_state = MachineState::here();
 
-    let writer = &crate::util::logging::WRITER;
+    let writer = &hadron_base::util::logging::WRITER;
     _ = writer.write_fmt(format_args!("BOOT KERNEL PANIC: {}\n", info.message()));
     if let Some(location) = info.location() {
         _ = writer.write_fmt(format_args!(
@@ -84,7 +87,7 @@ pub fn limine_print_panic(info: &core::panic::PanicInfo) {
     }
 
     if ALLOCATOR.generic_size() != 0 {
-        let mut unwinder = crate::util::backtrace::create_unwinder(&machine_state);
+        let mut unwinder = hadron_base::util::backtrace::create_unwinder(&machine_state);
         while let Ok(Some(frame)) = unwinder.next() {
             _ = writer.write_fmt(format_args!("    at {:#X}\n", frame.pc));
         }
@@ -144,9 +147,9 @@ fn init_core() {
     log::debug!("BOOT: booted from {} {}", response.name(), response.version());
 
     log::debug!("BOOT: initializing GDT...");
-    crate::base::arch::x86_64::gdt::init();
+    hadron_base::base::arch::x86_64::gdt::init();
     log::debug!("BOOT: initializing IDT...");
-    crate::base::arch::x86_64::idt::init();
+    hadron_base::base::arch::x86_64::idt::init();
 }
 
 /// Populates the boot info.
@@ -302,7 +305,8 @@ fn allocate_pages() -> ! {
 
     let page_table_ptr = page_table.as_phys_addr().as_u64();
 
-    allocator.deinit(&mut frame_allocator, boot_info.hhdm_offset);
+    // TODO: Manually free the memory map
+    //allocator.deinit(&mut frame_allocator, boot_info.hhdm_offset);
 
     // Setup the page tables, switch to the new stack, and push a null pointer to the stack
     unsafe {
@@ -323,6 +327,7 @@ fn allocate_pages() -> ! {
 }
 
 fn limine_stage_2() -> ! {
+    use crate::boot::arch::memory_map::MainMemoryMap;
     init_heap();
     init_logging();
 

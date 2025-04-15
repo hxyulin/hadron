@@ -392,14 +392,7 @@ name = "hadron-api"
 version = "0.0.1"
 
 [[package]]
-name = "hadron-drivers"
-version = "0.0.1"
-dependencies = [
- "hadron-api",
-]
-
-[[package]]
-name = "hadron-kernel"
+name = "hadron-base"
 version = "0.0.1"
 dependencies = [
  "acpi",
@@ -410,13 +403,10 @@ dependencies = [
  "crossbeam",
  "futures",
  "gimli",
- "hadron-drivers",
  "hadron-test",
  "lazy_static",
- "limine",
  "linked_list_allocator",
  "log",
- "menuconfig",
  "no-alloc",
  "noto-sans-mono-bitmap",
  "raw-cpuid 11.5.0",
@@ -424,6 +414,26 @@ dependencies = [
  "static_assertions",
  "uart_16550",
  "volatile 0.0.1",
+ "x86_64",
+]
+
+[[package]]
+name = "hadron-drivers"
+version = "0.0.1"
+dependencies = [
+ "hadron-base",
+]
+
+[[package]]
+name = "hadron-kernel"
+version = "0.0.1"
+dependencies = [
+ "hadron-base",
+ "hadron-drivers",
+ "limine",
+ "linked_list_allocator",
+ "log",
+ "spin 0.10.0",
  "x86_64",
 ]
 

@@ -5,13 +5,13 @@ use crate::util::version::SemVer;
 #[repr(C)]
 #[derive(Debug)]
 pub struct DrmDriver {
-    features: DrmFeatures,
+    pub features: DrmFeatures,
     /// The name of the driver
-    name: &'static str,
+    pub name: &'static str,
     /// The description of the driver
-    desc: &'static str,
+    pub desc: &'static str,
     /// The version of the driver
-    ver: SemVer,
+    pub ver: SemVer,
 }
 
 bitflags::bitflags! {

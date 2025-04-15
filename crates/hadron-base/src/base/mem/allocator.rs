@@ -1,6 +1,7 @@
 use core::{alloc::GlobalAlloc, ptr::NonNull};
 
-use alloc::{collections::btree_map::BTreeMap, vec::Vec};
+use alloc::{alloc::Allocator, collections::btree_map::BTreeMap, vec::Vec};
+use linked_list_allocator::LockedHeap;
 use spin::{Mutex, RwLock};
 use x86_64::{
     VirtAddr,
@@ -8,6 +9,8 @@ use x86_64::{
 };
 
 use crate::base::mem::mappings;
+
+use super::sync::Arc;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ZoneId(usize);
@@ -202,4 +205,61 @@ pub fn z_alloc(_id: ZoneId) -> *mut u8 {
 /// Deallocates a fixed size array using a zone allocator.
 pub fn z_dealloc(_id: ZoneId, _ptr: *mut u8) {
     todo!()
+}
+
+pub struct FrameBasedAllocator {
+    // TODO: Make this a bump allocator or something
+    heap: LockedHeap,
+}
+
+impl core::fmt::Debug for FrameBasedAllocator {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("FrameBasedAllocator").finish()
+    }
+}
+
+impl FrameBasedAllocator {
+    pub const fn empty() -> Self {
+        Self {
+            heap: LockedHeap::empty(),
+        }
+    }
+
+    pub unsafe fn new(base: VirtAddr, length: usize) -> Self {
+        Self {
+            heap: unsafe { LockedHeap::new(base.as_mut_ptr(), length) },
+        }
+    }
+
+    pub fn init(&self, base: VirtAddr, length: usize) {
+        unsafe { self.heap.lock().init(base.as_mut_ptr(), length) };
+    }
+
+    pub fn mapped_range(&self) -> (VirtAddr, u64) {
+        let heap = self.heap.lock();
+        (VirtAddr::new(heap.bottom() as u64), heap.size() as u64)
+    }
+}
+
+unsafe impl Allocator for Arc<FrameBasedAllocator> {
+    fn allocate(&self, layout: core::alloc::Layout) -> Result<core::ptr::NonNull<[u8]>, alloc::alloc::AllocError> {
+        (**self).allocate(layout)
+    }
+
+    unsafe fn deallocate(&self, ptr: core::ptr::NonNull<u8>, layout: core::alloc::Layout) {
+        unsafe { (**self).deallocate(ptr, layout) }
+    }
+}
+
+unsafe impl Allocator for FrameBasedAllocator {
+    fn allocate(&self, layout: core::alloc::Layout) -> Result<core::ptr::NonNull<[u8]>, alloc::alloc::AllocError> {
+        match self.heap.lock().allocate_first_fit(layout) {
+            Ok(ptr) => Ok(NonNull::slice_from_raw_parts(ptr, layout.size())),
+            Err(_) => Err(alloc::alloc::AllocError),
+        }
+    }
+
+    unsafe fn deallocate(&self, ptr: core::ptr::NonNull<u8>, layout: core::alloc::Layout) {
+        unsafe { self.heap.lock().deallocate(ptr.cast(), layout) }
+    }
 }

@@ -8,4 +8,4 @@ test = false
 bench = false
 
 [dependencies]
-hadron-api.workspace = true
+hadron-base.workspace = true

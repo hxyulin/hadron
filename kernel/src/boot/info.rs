@@ -2,7 +2,7 @@ use linked_list_allocator::LockedHeap;
 use x86_64::{PhysAddr, VirtAddr};
 
 use super::arch::memory_map::BootstrapMemoryMap;
-use crate::base::mem::sync::RacyCell;
+use hadron_base::base::mem::sync::RacyCell;
 
 pub struct BootInfo {
     pub hhdm_offset: u64,
@@ -30,12 +30,6 @@ impl BootInfo {
 
 static BOOT_INFO: RacyCell<BootInfo> = RacyCell::new(BootInfo::uninit());
 
-#[inline]
-#[allow(static_mut_refs)]
-pub(super) fn boot_info() -> &'static BootInfo {
-    BOOT_INFO.get()
-}
-
 /// # Safety
 ///
 /// This function is only safe to call if there are no other references to the boot info.
@@ -43,12 +37,4 @@ pub(super) fn boot_info() -> &'static BootInfo {
 #[allow(static_mut_refs)]
 pub(super) unsafe fn boot_info_mut() -> &'static mut BootInfo {
     BOOT_INFO.get_mut()
-}
-
-#[inline]
-pub(super) fn with_boot_info_mut<T, F: FnOnce(&mut BootInfo) -> T>(f: F) -> T {
-    static LOCK: spin::Mutex<()> = spin::Mutex::new(());
-    let _guard = LOCK.try_lock().expect("Kernel info is already borrowed");
-    let boot_info = unsafe { boot_info_mut() };
-    f(boot_info)
 }

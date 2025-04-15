@@ -1,13 +1,16 @@
-use core::ptr::NonNull;
-
-use alloc::{
-    alloc::{AllocError, Allocator},
-    vec::Vec,
+use alloc::vec::Vec;
+use hadron_base::base::mem::{
+    allocator::FrameBasedAllocator,
+    mappings,
+    memory_map::{MemoryMap, MemoryRegion, MemoryRegionTag},
+    page_table::{KernelPageTable, PageTable},
 };
-use linked_list_allocator::LockedHeap;
-use x86_64::{PhysAddr, VirtAddr};
+use x86_64::{
+    PhysAddr, VirtAddr,
+    structures::paging::{FrameAllocator, Page, PageSize, PageTableFlags, Size4KiB},
+};
 
-use crate::base::mem::sync::Arc;
+use hadron_base::base::mem::sync::Arc;
 
 use super::x86_64::frame_allocator::BasicFrameAllocator;
 
@@ -37,14 +40,6 @@ pub struct MemoryMapEntry {
 }
 
 impl MemoryMapEntry {
-    const fn default() -> Self {
-        Self {
-            base: PhysAddr::new(0),
-            length: 0,
-            memory_type: MemoryRegionType::Usable,
-        }
-    }
-
     pub const fn new(base: PhysAddr, length: u64, memory_type: MemoryRegionType) -> Self {
         Self {
             base,
@@ -71,68 +66,6 @@ impl MemoryMapEntry {
 
     pub fn set_type(&mut self, ty: MemoryRegionType) {
         self.memory_type = ty;
-    }
-}
-
-pub struct FrameBasedAllocator {
-    // TODO: Make this a bump allocator or something
-    heap: LockedHeap,
-}
-
-impl core::fmt::Debug for FrameBasedAllocator {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.debug_struct("FrameBasedAllocator").finish()
-    }
-}
-
-impl FrameBasedAllocator {
-    pub const fn empty() -> Self {
-        Self {
-            heap: LockedHeap::empty(),
-        }
-    }
-
-    pub unsafe fn new(base: VirtAddr, length: usize) -> Self {
-        Self {
-            heap: unsafe { LockedHeap::new(base.as_mut_ptr(), length) },
-        }
-    }
-
-    pub fn init(&self, base: VirtAddr, length: usize) {
-        unsafe { self.heap.lock().init(base.as_mut_ptr(), length) };
-    }
-
-    pub fn mapped_range(&self) -> (VirtAddr, u64) {
-        let heap = self.heap.lock();
-        (VirtAddr::new(heap.bottom() as u64), heap.size() as u64)
-    }
-
-    pub fn deinit(self, dealloc: &mut BasicFrameAllocator, hhdm_offset: u64) {
-        let (base, length) = self.mapped_range();
-        dealloc.deallocate_region(PhysAddr::new((base - hhdm_offset).as_u64()), length);
-    }
-}
-
-unsafe impl Allocator for Arc<FrameBasedAllocator> {
-    fn allocate(&self, layout: core::alloc::Layout) -> Result<core::ptr::NonNull<[u8]>, alloc::alloc::AllocError> {
-        (**self).allocate(layout)
-    }
-
-    unsafe fn deallocate(&self, ptr: core::ptr::NonNull<u8>, layout: core::alloc::Layout) {
-        unsafe { (**self).deallocate(ptr, layout) }
-    }
-}
-
-unsafe impl Allocator for FrameBasedAllocator {
-    fn allocate(&self, layout: core::alloc::Layout) -> Result<core::ptr::NonNull<[u8]>, alloc::alloc::AllocError> {
-        match self.heap.lock().allocate_first_fit(layout) {
-            Ok(ptr) => Ok(NonNull::slice_from_raw_parts(ptr, layout.size())),
-            Err(_) => Err(AllocError),
-        }
-    }
-
-    unsafe fn deallocate(&self, ptr: core::ptr::NonNull<u8>, layout: core::alloc::Layout) {
-        unsafe { self.heap.lock().deallocate(ptr.cast(), layout) }
     }
 }
 
@@ -193,5 +126,89 @@ impl BootstrapMemoryMap {
     /// Returns the mapped range of the memory map
     pub fn mapped_range(&self) -> (VirtAddr, u64) {
         self.entries.allocator().mapped_range()
+    }
+}
+
+pub trait MainMemoryMap {
+    fn from_bootstrap(memory_map: &mut BootstrapMemoryMap, page_table: &mut KernelPageTable) -> Self;
+    fn push_entry(&mut self, entry: crate::boot::arch::memory_map::MemoryMapEntry);
+}
+
+impl MainMemoryMap for MemoryMap {
+    /// Parses the memory map from the bootstrap info
+    ///
+    /// This will allocate at most [`Self::MAX_BOOTSTRAP_PAGES`] pages for the kernel heap,
+    /// storing the rest of the usable memory in the `special` field
+    fn from_bootstrap(memory_map: &mut BootstrapMemoryMap, page_table: &mut KernelPageTable) -> Self {
+        /// The number of entries we need to reserve for the memory map, for deallocation of the
+        /// bootstrap structures
+        const RESERVED_ENTRIES: u64 = 8;
+        // We need to calculate how much memory we need for the entire memory map
+        let mut required_size = size_of::<MemoryRegion>() as u64 * RESERVED_ENTRIES;
+        for region in memory_map.iter() {
+            required_size += size_of::<MemoryRegion>() as u64;
+            let bitmap_size = region.length.div_ceil(32768);
+            // We align it to 64 bytes to be conservative
+            required_size += (bitmap_size + 63) & !63;
+        }
+
+        let mut frame_allocator = BasicFrameAllocator::new(memory_map);
+        let required_frames = required_size.div_ceil(Size4KiB::SIZE);
+        for i in 0..required_frames {
+            let addr = mappings::MEMORY_MAPPINGS + i * Size4KiB::SIZE;
+            unsafe {
+                page_table.map_with_allocator(
+                    Page::from_start_address(addr).unwrap(),
+                    frame_allocator.allocate_frame().unwrap(),
+                    PageTableFlags::PRESENT | PageTableFlags::WRITABLE | PageTableFlags::NO_EXECUTE,
+                    &mut frame_allocator,
+                )
+            };
+        }
+
+        let alloc = Arc::new(unsafe {
+            FrameBasedAllocator::new(mappings::MEMORY_MAPPINGS, (required_frames * Size4KiB::SIZE) as usize)
+        });
+        let mut entries = Vec::new_in(alloc.clone());
+        entries.reserve_exact(memory_map.len());
+        for entry in memory_map
+            .iter()
+            .filter(|entry| entry.ty() == MemoryRegionType::Usable && entry.length() > 0)
+        {
+            entries.push(MemoryRegion::from_base_and_length(
+                entry.base(),
+                entry.length(),
+                alloc.clone(),
+            ));
+        }
+
+        Self {
+            alloc,
+            entries,
+            special: Vec::new(),
+        }
+    }
+
+    fn push_entry(&mut self, entry: crate::boot::arch::memory_map::MemoryMapEntry) {
+        self.entries.push(MemoryRegion::from_base_and_length(
+            entry.base(),
+            entry.length(),
+            self.alloc.clone(),
+        ));
+    }
+}
+
+impl TryInto<MemoryRegionTag> for MemoryRegionType {
+    type Error = ();
+
+    fn try_into(self) -> Result<MemoryRegionTag, Self::Error> {
+        match self {
+            MemoryRegionType::BootloaderReclaimable => Ok(MemoryRegionTag::BootloaderReclaimable),
+            MemoryRegionType::KernelAndModules => Ok(MemoryRegionTag::KernelAndModules),
+            MemoryRegionType::Framebuffer => Ok(MemoryRegionTag::Framebuffer),
+            MemoryRegionType::AcpiReclaimable => Ok(MemoryRegionTag::AcpiReclaimable),
+            MemoryRegionType::AcpiNvs => Ok(MemoryRegionTag::AcpiNvs),
+            _ => Err(()),
+        }
     }
 }

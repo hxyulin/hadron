@@ -9,46 +9,18 @@ path = "src/main.rs"
 test = false
 bench = false
 
-[features]
-default = []
-# Serial debug output
-serial-debug = []
-
 [dependencies]
+spin.workspace = true
+log.workspace = true
+hadron-base.workspace = true
 hadron-drivers.workspace = true
 limine.workspace = true
-volatile.workspace = true
-lazy_static.workspace = true
-log.workspace = true
-bitflags.workspace = true
-spin.workspace = true
-no-alloc.workspace = true
+x86_64.workspace = true
 
-noto-sans-mono-bitmap = { version = "0.3.1", default-features = false, features = [
-    "regular",
-    "size_16",
-    "unicode-basic-latin",
-    "unicode-specials",
-] }
-x86_64 = "0.15.2"
-uart_16550 = { version = "0.3.2", features = ["nightly"] }
 linked_list_allocator = "0.10.5"
-acpi = "5.2.0"
-chrono = { version = "0.4.40", default-features = false, features = ["alloc"] }
-bit_field = "0.10.2"
-conquer-once = { version = "0.4.0", default-features = false }
-raw-cpuid = "11.5.0"
-gimli = { version = "0.27.2", default-features = false, features = ["read"] }
-crossbeam = { version = "0.8.4", default-features = false, features = ["alloc"] }
-futures = { version = "0.3.31", default-features = false, features = ["alloc"] }
-
-[build-dependencies]
-menuconfig.workspace = true
 
 [dev-dependencies]
-static_assertions.workspace = true
 limine = { workspace = true, features = ["internal-api"] }
-hadron-test.workspace = true
 
 [package.metadata.qemu_runner]
 limine-branch = "v8.x-binary"

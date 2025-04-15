@@ -2,7 +2,9 @@
 resolver = "2"
 members = [
     "crates/buildscript",
-    "crates/driver-macros", "crates/hadron-api",
+    "crates/driver-macros",
+    "crates/hadron-api",
+    "crates/hadron-base",
     "crates/hadron-macros",
     "crates/hadron-test",
     "crates/limine",
@@ -21,6 +23,7 @@ edition = "2024"
 
 [workspace.dependencies]
 hadron-api = { path = "crates/hadron-api", default-features = false }
+hadron-base = { path = "crates/hadron-base", default-features = false }
 hadron-macros = { path = "crates/hadron-macros", default-features = false }
 hadron-drivers = { path = "drivers", default-features = false }
 menuconfig = { path = "crates/menuconfig", default-features = false }
@@ -29,6 +32,7 @@ volatile = { path = "crates/volatile", default-features = false }
 hadron-test = { path = "crates/hadron-test", default-features = false }
 no-alloc = { path = "crates/no-alloc", default-features = false }
 
+x86_64 = "0.15.2"
 static_assertions = { version = "1.1.0", features = ["nightly"] }
 lazy_static = { version = "1.5.0", features = ["spin_no_std"] }
 log = "0.4.27"

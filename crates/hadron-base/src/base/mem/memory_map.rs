@@ -1,21 +1,16 @@
-use super::page_table::PageTable;
-use crate::{
-    base::mem::{mappings, sync::Arc},
-    boot::arch::memory_map::{BootstrapMemoryMap, FrameBasedAllocator, MemoryRegionType},
-};
+use super::allocator::FrameBasedAllocator;
+use crate::base::mem::sync::Arc;
 use alloc::vec::Vec;
 use x86_64::{
     PhysAddr,
-    structures::paging::{FrameAllocator, Page, PageSize, PageTableFlags, Size4KiB},
+    structures::paging::{PageSize, Size4KiB},
 };
-
-use super::page_table::KernelPageTable;
 
 #[derive(Debug)]
 pub struct MemoryMap {
-    pub(super) alloc: Arc<FrameBasedAllocator>,
-    pub(super) entries: Vec<MemoryRegion, Arc<FrameBasedAllocator>>,
-    pub(super) special: Vec<SpecialMemoryRegion>,
+    pub alloc: Arc<FrameBasedAllocator>,
+    pub entries: Vec<MemoryRegion, Arc<FrameBasedAllocator>>,
+    pub special: Vec<SpecialMemoryRegion>,
 }
 
 #[derive(Debug, Clone)]
@@ -26,72 +21,6 @@ pub struct MemoryRegion {
 
 #[derive(Clone)]
 pub struct Bitmap<A: alloc::alloc::Allocator = alloc::alloc::Global>(Vec<u64, A>, usize);
-
-impl MemoryMap {
-    /// Parses the memory map from the bootstrap info
-    ///
-    /// This will allocate at most [`Self::MAX_BOOTSTRAP_PAGES`] pages for the kernel heap,
-    /// storing the rest of the usable memory in the `special` field
-    pub fn from_bootstrap(memory_map: &mut BootstrapMemoryMap, page_table: &mut KernelPageTable) -> Self {
-        use crate::boot::arch::x86_64::frame_allocator::BasicFrameAllocator;
-
-        /// The number of entries we need to reserve for the memory map, for deallocation of the
-        /// bootstrap structures
-        const RESERVED_ENTRIES: u64 = 8;
-        // We need to calculate how much memory we need for the entire memory map
-        let mut required_size = size_of::<MemoryRegion>() as u64 * RESERVED_ENTRIES;
-        for region in memory_map.iter() {
-            required_size += size_of::<MemoryRegion>() as u64;
-            let bitmap_size = region.length.div_ceil(32768);
-            // We align it to 64 bytes to be conservative
-            required_size += (bitmap_size + 63) & !63;
-        }
-
-        let mut frame_allocator = BasicFrameAllocator::new(memory_map);
-        let required_frames = required_size.div_ceil(Size4KiB::SIZE);
-        for i in 0..required_frames {
-            let addr = mappings::MEMORY_MAPPINGS + i * Size4KiB::SIZE;
-            unsafe {
-                page_table.map_with_allocator(
-                    Page::from_start_address(addr).unwrap(),
-                    frame_allocator.allocate_frame().unwrap(),
-                    PageTableFlags::PRESENT | PageTableFlags::WRITABLE | PageTableFlags::NO_EXECUTE,
-                    &mut frame_allocator,
-                )
-            };
-        }
-
-        let alloc = Arc::new(unsafe {
-            FrameBasedAllocator::new(mappings::MEMORY_MAPPINGS, (required_frames * Size4KiB::SIZE) as usize)
-        });
-        let mut entries = Vec::new_in(alloc.clone());
-        entries.reserve_exact(memory_map.len());
-        for entry in memory_map
-            .iter()
-            .filter(|entry| entry.ty() == MemoryRegionType::Usable && entry.length() > 0)
-        {
-            entries.push(MemoryRegion::from_base_and_length(
-                entry.base(),
-                entry.length(),
-                alloc.clone(),
-            ));
-        }
-
-        Self {
-            alloc,
-            entries,
-            special: Vec::new(),
-        }
-    }
-
-    pub fn push_entry(&mut self, entry: crate::boot::arch::memory_map::MemoryMapEntry) {
-        self.entries.push(MemoryRegion::from_base_and_length(
-            entry.base(),
-            entry.length(),
-            self.alloc.clone(),
-        ));
-    }
-}
 
 impl MemoryRegion {
     pub fn from_base_and_length(base: PhysAddr, length: u64, alloc: Arc<FrameBasedAllocator>) -> Self {
@@ -222,17 +151,4 @@ pub struct SpecialMemoryRegion {
     pub(crate) base: PhysAddr,
     pub(crate) length: u64,
     pub(crate) tag: MemoryRegionTag,
-}
-
-impl MemoryRegionTag {
-    pub fn from_type(ty: MemoryRegionType) -> Option<Self> {
-        match ty {
-            MemoryRegionType::BootloaderReclaimable => Some(Self::BootloaderReclaimable),
-            MemoryRegionType::KernelAndModules => Some(Self::KernelAndModules),
-            MemoryRegionType::Framebuffer => Some(Self::Framebuffer),
-            MemoryRegionType::AcpiReclaimable => Some(Self::AcpiReclaimable),
-            MemoryRegionType::AcpiNvs => Some(Self::AcpiNvs),
-            _ => None,
-        }
-    }
 }

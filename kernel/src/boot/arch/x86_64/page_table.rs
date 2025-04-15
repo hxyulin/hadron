@@ -1,11 +1,10 @@
 use alloc::vec::Vec;
+use hadron_base::base::mem::allocator::FrameBasedAllocator;
 use x86_64::{
     PhysAddr, VirtAddr,
     registers::control::Cr3Flags,
     structures::paging::{PageTable, PageTableFlags, PhysFrame, page_table::PageTableEntry},
 };
-
-use crate::boot::arch::memory_map::FrameBasedAllocator;
 
 use super::frame_allocator::BasicFrameAllocator;
 

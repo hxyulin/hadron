@@ -2,8 +2,12 @@
 
 #![no_std]
 
-use hadron_api::DrmDriver;
+use hadron_base::{
+    dev::gpu::drm::{DrmDriver, DrmFeatures},
+    util::version::SemVer,
+};
 
+#[doc(hidden)]
 #[used]
 #[unsafe(export_name = "INCLUDE_DRM_DRIVERS")]
 pub static __HIDDEN: u8 = 0;
@@ -12,12 +16,8 @@ pub static __HIDDEN: u8 = 0;
 #[unsafe(export_name = "TEST")]
 #[unsafe(link_section = ".drm_drivers")]
 static BOCHS_VGA: DrmDriver = DrmDriver {
-    features: 0,
+    features: DrmFeatures::empty(),
     name: "Bochs VGA",
     desc: "The VGA driver for Bochs / QEMU",
-    ver: hadron_api::SemVer {
-        major: 0,
-        minor: 0,
-        patch: 1,
-    },
+    ver: SemVer::new(0, 0, 1),
 };
