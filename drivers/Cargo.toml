@@ -4,9 +4,8 @@ version.workspace = true
 edition.workspace = true
 
 [lib]
-crate-type = ["staticlib"]
 test = false
 bench = false
 
 [dependencies]
-log.workspace = true
+hadron-api.workspace = true

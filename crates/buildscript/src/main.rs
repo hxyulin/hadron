@@ -49,7 +49,21 @@ fn main() {
     }
 }
 
+fn build_deps() {
+    println!("Building drivers");
+    let mut command = Command::new("cargo");
+    command.arg("build");
+    command.args(&["--package", "hadron-drivers"]);
+    command.args(&["--target", "targets/x86_64-unknown-hadron.json"]);
+    command.args(&[
+        "-Zbuild-std=core,alloc,compiler_builtins",
+        "-Zbuild-std-features=compiler-builtins-mem",
+    ]);
+    command.status().unwrap();
+}
+
 fn build() {
+    build_deps();
     println!("Building Hadron kernel");
     let mut command = Command::new("cargo");
     command.arg("build");
@@ -70,6 +84,7 @@ fn clean() {
 }
 
 fn run() {
+    build_deps();
     println!("Running Hadron kernel");
     let mut command = Command::new("cargo");
     command.arg("run");

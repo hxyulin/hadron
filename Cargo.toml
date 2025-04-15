@@ -2,7 +2,7 @@
 resolver = "2"
 members = [
     "crates/buildscript",
-    "crates/driver-macros",
+    "crates/driver-macros", "crates/hadron-api",
     "crates/hadron-macros",
     "crates/hadron-test",
     "crates/limine",
@@ -20,6 +20,9 @@ version = "0.0.1"
 edition = "2024"
 
 [workspace.dependencies]
+hadron-api = { path = "crates/hadron-api", default-features = false }
+hadron-macros = { path = "crates/hadron-macros", default-features = false }
+hadron-drivers = { path = "drivers", default-features = false }
 menuconfig = { path = "crates/menuconfig", default-features = false }
 limine = { path = "crates/limine", default-features = false }
 volatile = { path = "crates/volatile", default-features = false }

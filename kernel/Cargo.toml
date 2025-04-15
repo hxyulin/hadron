@@ -1,5 +1,3 @@
-cargo-features = ["per-package-target"]
-
 [package]
 name = "hadron-kernel"
 version = "0.0.1"
@@ -17,6 +15,7 @@ default = []
 serial-debug = []
 
 [dependencies]
+hadron-drivers.workspace = true
 limine.workspace = true
 volatile.workspace = true
 lazy_static.workspace = true

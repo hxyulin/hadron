@@ -2,6 +2,8 @@
 //!
 use crate::util::version::SemVer;
 
+#[repr(C)]
+#[derive(Debug)]
 pub struct DrmDriver {
     features: DrmFeatures,
     /// The name of the driver
@@ -13,6 +15,7 @@ pub struct DrmDriver {
 }
 
 bitflags::bitflags! {
+    #[repr(transparent)]
     #[derive(Debug, Clone, Copy)]
     pub struct DrmFeatures: u32 {
     }

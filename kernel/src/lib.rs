@@ -31,6 +31,9 @@ pub use boot::limine::limine_entry as kernel_entry;
 use x86_64::PhysAddr;
 
 extern crate alloc;
+// We need to use extern crate to allow the linker to find the symbols
+// If we remove this, the .drivers section will be empty
+extern crate hadron_drivers;
 
 #[global_allocator]
 pub static ALLOCATOR: KernelAllocator = KernelAllocator::empty();
@@ -69,6 +72,18 @@ extern "Rust" fn kernel_main(params: KernelParams) -> ! {
 /// This involes:
 /// - Finding the drivers for the devices
 fn init_drivers() {
+    unsafe extern "C" {
+        static _drm_drv_start: u8;
+        static _drm_drv_end: u8;
+    }
+    let start = &raw const _drm_drv_start as usize;
+    let end = &raw const _drm_drv_end as usize;
+    let count = (end - start) / core::mem::size_of::<dev::gpu::drm::DrmDriver>();
+    let start = &raw const _drm_drv_start as *const dev::gpu::drm::DrmDriver;
+    for i in 0..count {
+        let drv = unsafe { &*(start.add(i)) };
+        log::debug!("drv: {:#?}", drv);
+    }
     log::debug!("CPU Features: {:#?}", crate::util::cpu::cpu_features());
 }
 

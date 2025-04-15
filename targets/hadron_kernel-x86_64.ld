@@ -1,5 +1,8 @@
 OUTPUT_FORMAT(elf64-x86-64)
+/* We need to make sure the linker actually looks into hadron_drivers.rlib */
+EXTERN(INCLUDE_DRM_DRIVERS)
 ENTRY(kernel_entry)
+
 
 PHDRS
 {
@@ -40,6 +43,12 @@ SECTIONS
 
     .rodata : {
         *(.rodata .rodata.*)
+    } :rodata
+
+    .drivers : ALIGN(4) {
+        _drm_drv_start = .;
+        KEEP(*(.drm_drivers .drm_drivers.*))
+        _drm_drv_end = .;
     } :rodata
 
     . = ALIGN(CONSTANT(MAXPAGESIZE));
@@ -92,9 +101,5 @@ SECTIONS
 
     . = ALIGN(CONSTANT(MAXPAGESIZE));
     _kernel_end = .;
-
-    /DISCARD/ : {
-        *(.note .note.*)
-    }
 }
 

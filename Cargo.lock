@@ -388,10 +388,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b6c80984affa11d98d1b88b66ac8853f143217b399d3c74116778ff8fdb4ed2e"
 
 [[package]]
+name = "hadron-api"
+version = "0.0.1"
+
+[[package]]
 name = "hadron-drivers"
 version = "0.0.1"
 dependencies = [
- "log",
+ "hadron-api",
 ]
 
 [[package]]
@@ -406,6 +410,7 @@ dependencies = [
  "crossbeam",
  "futures",
  "gimli",
+ "hadron-drivers",
  "hadron-test",
  "lazy_static",
  "limine",
