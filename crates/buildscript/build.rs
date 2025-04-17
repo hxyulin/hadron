@@ -3,8 +3,7 @@
 use std::env::current_dir;
 
 fn main() {
-    // We intialize a logger so we can understand the error
-    simple_logger::init_with_level(log::Level::Trace).expect("TODO: handle error");
+    init_logger();
     let root_dir = current_dir()
         .unwrap()
         .join("../../")
@@ -21,4 +20,24 @@ fn main() {
         menuconfig::config::generate_defconfig(&config_file).expect("BUILD: failed to generate config");
     }
     println!("cargo:rustc-env=CONFIG_FILE={}", config_file.display());
+}
+
+struct Logger;
+
+impl log::Log for Logger {
+    fn enabled(&self, _metadata: &log::Metadata) -> bool {
+        true
+    }
+
+    fn log(&self, record: &log::Record) {
+        println!("{} {}", record.level(), record.args());
+    }
+
+    fn flush(&self) {}
+}
+
+fn init_logger() {
+    // It is a super single logger
+    let logger = Box::leak(Box::new(Logger));
+    log::set_logger(logger).expect("TODO: handle error");
 }

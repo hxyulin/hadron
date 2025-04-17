@@ -12,5 +12,8 @@ clean:
 menuconfig:
 	cargo run -p buildscript -- menuconfig
 
+defconfig:
+	cargo run -p buildscript -- defconfig
+
 test:
 	cargo run -p buildscript -- test

@@ -7,9 +7,12 @@ use hadron_base::{
     util::version::SemVer,
 };
 
+/// A special symbol that is used so that the linker actually looks into the .rlib
+/// for the object files, to resolve this symbol. Otherwise this crate won't be linked
+/// (because it is not designed to be used and exposed to rust as a crate).
 #[doc(hidden)]
 #[used]
-#[unsafe(export_name = "INCLUDE_DRM_DRIVERS")]
+#[unsafe(export_name = "INCLUDE_DRV_DRIVERS")]
 pub static __HIDDEN: u8 = 0;
 
 #[used]

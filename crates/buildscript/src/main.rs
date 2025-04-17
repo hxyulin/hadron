@@ -41,33 +41,28 @@ fn main() {
     let task = Task::from_str(&args.next().unwrap_or("build".to_string())).unwrap();
 
     match task {
-        Task::Build => build(),
+        Task::Build => build(false),
         Task::Clean => clean(),
-        Task::Run => run(),
+        Task::Run => build(true),
         Task::Menuconfig => menuconfig(),
         Task::Test => test(),
     }
 }
 
-fn build_deps() {
-    println!("Building drivers");
+fn build(run: bool) {
+    let config = menuconfig::config::Config::from_file("target/generated/config.toml");
     let mut command = Command::new("cargo");
-    command.arg("build");
-    command.args(&["--package", "hadron-drivers"]);
-    command.args(&["--target", "targets/x86_64-unknown-hadron.json"]);
-    command.args(&[
-        "-Zbuild-std=core,alloc,compiler_builtins",
-        "-Zbuild-std-features=compiler-builtins-mem",
-    ]);
-    command.status().unwrap();
-}
-
-fn build() {
-    build_deps();
-    println!("Building Hadron kernel");
-    let mut command = Command::new("cargo");
-    command.arg("build");
+    if run {
+        println!("Running Hadron kernel");
+        command.arg("run");
+    } else {
+        println!("Building Hadron kernel");
+        command.arg("build");
+    }
     command.args(&["--package", "hadron-kernel"]);
+    if !config.debug {
+        command.args(&["--release"]);
+    }
     command.args(&["--target", "targets/x86_64-unknown-hadron.json"]);
     command.args(&[
         "-Zbuild-std=core,alloc,compiler_builtins",
@@ -80,20 +75,6 @@ fn clean() {
     println!("Cleaning Hadron kernel");
     let mut command = Command::new("cargo");
     command.arg("clean");
-    command.status().unwrap();
-}
-
-fn run() {
-    build_deps();
-    println!("Running Hadron kernel");
-    let mut command = Command::new("cargo");
-    command.arg("run");
-    command.args(&["--package", "hadron-kernel"]);
-    command.args(&["--target", "targets/x86_64-unknown-hadron.json"]);
-    command.args(&[
-        "-Zbuild-std=core,alloc,compiler_builtins",
-        "-Zbuild-std-features=compiler-builtins-mem",
-    ]);
     command.status().unwrap();
 }
 

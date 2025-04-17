@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file, with their commit hash, date, and version number (if applicable).
 
+## 2376c2b8eb153f56cb182056275998e1715ad8c1 (2025-04-15)
+ - Split kernel into hadron-base, hadron-drivers, and main kernel crate hadron-kernel
+ - Added support for the `hadron-drivers` crate.
+
 ## 48009992f2e3d1d6ed130e114a5e78e9a243d268 (2025-04-14)
  - Seperated BootInfo and RuntimeInfo into two structs.
  - The logger now works universally using a fallback logger.

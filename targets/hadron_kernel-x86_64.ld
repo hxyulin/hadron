@@ -1,6 +1,6 @@
 OUTPUT_FORMAT(elf64-x86-64)
 /* We need to make sure the linker actually looks into hadron_drivers.rlib */
-EXTERN(INCLUDE_DRM_DRIVERS)
+EXTERN(INCLUDE_DRV_DRIVERS)
 ENTRY(kernel_entry)
 
 

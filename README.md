@@ -1,6 +1,6 @@
 # Hadron
 
-> Note: Development of this project is currently paused (resumes in end of May 2025). However, if you make a PR, I'll review it and merge it.
+> Note: Development of this project is currently paused (resumes in end of May 2025), although there may be occasional commits.
 
 Hadron is a POSIX compliant, secure, and open-source operating system written in Rust.
 Internally, Hadron takes inspiration from Linux, but is not a direct port / fork.

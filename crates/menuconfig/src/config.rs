@@ -1,5 +1,6 @@
 use serde_derive::{Deserialize, Serialize};
-use std::{path::PathBuf, str::FromStr};
+use core::convert::AsRef;
+use std::{path::{Path, PathBuf}, str::FromStr};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum Target {
@@ -55,7 +56,7 @@ impl Default for Config {
 }
 
 impl Config {
-    pub fn from_file(path: &PathBuf) -> Self {
+    pub fn from_file<P: AsRef<Path>>(path: P) -> Self {
         let contents = std::fs::read_to_string(path).unwrap();
         toml::from_str(&contents).unwrap()
     }

@@ -22,7 +22,7 @@ linked_list_allocator = "0.10.5"
 [dev-dependencies]
 limine = { workspace = true, features = ["internal-api"] }
 
-[package.metadata.qemu_runner]
+[package.metadata.image-runner]
 limine-branch = "v8.x-binary"
 config-file = "limine.conf"
 extra-files = []

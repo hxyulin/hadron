@@ -4,9 +4,8 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+menuconfig.workspace = true
 
 [build-dependencies]
 menuconfig.workspace = true
 log.workspace = true
-
-simple_logger = "5.0.0"
