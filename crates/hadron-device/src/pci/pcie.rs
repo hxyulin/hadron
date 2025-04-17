@@ -6,7 +6,8 @@ use x86_64::{
     structures::paging::{Page, PageSize, PageTableFlags, PhysFrame, Size2MiB},
 };
 
-use crate::{base::mem::page_table::PageTable, dev::DeviceClass};
+use hadron_base::base::mem::page_table::PageTable;
+use crate::DeviceClass;
 
 /// The size of a PCIe device in bytes
 const DEVICE_SIZE: u64 = 8 * 4096;
@@ -46,8 +47,8 @@ impl PCIeConfigSpace {
         assert!(offset % Size2MiB::SIZE == 0, "offset must be aligned to 2MiB");
         let pages = size.div_ceil(Size2MiB::SIZE);
         log::debug!("PCI: mapping config space ({} 2MiB pages)", pages);
-        let mut page_table = crate::base::mem::PAGE_TABLE.lock();
-        let mut allocator = crate::base::mem::FRAME_ALLOCATOR.lock();
+        let mut page_table = hadron_base::base::mem::PAGE_TABLE.lock();
+        let mut allocator = hadron_base::base::mem::FRAME_ALLOCATOR.lock();
         let flags =
             PageTableFlags::PRESENT | PageTableFlags::WRITABLE | PageTableFlags::NO_EXECUTE | PageTableFlags::NO_CACHE;
         for i in 0..pages {
@@ -75,7 +76,7 @@ impl PCIeConfigSpace {
 
 impl Drop for PCIeConfigSpace {
     fn drop(&mut self) {
-        let mut page_table = crate::base::mem::PAGE_TABLE.lock();
+        let mut page_table = hadron_base::base::mem::PAGE_TABLE.lock();
         let pages = self.size().div_ceil(Size2MiB::SIZE);
         log::debug!("PCI: unmapping config space ({} 2MiB pages)", pages);
         for i in 0..pages {
@@ -341,8 +342,8 @@ fn parse_bus(spaces: &[PCIeConfigSpace], bus: &PCIeBus) -> super::PCIBusDevice {
                 super::PCIDev {
                     bars: function.get_bars(),
                     revision,
-                    dev: crate::dev::Device {
-                        allocator: crate::dev::DeviceAllocator {},
+                    dev: crate::Device {
+                        allocator: crate::DeviceAllocator {},
                         driver_data: None,
                     },
                 },

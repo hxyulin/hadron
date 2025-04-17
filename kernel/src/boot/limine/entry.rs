@@ -8,7 +8,7 @@ use x86_64::{
 };
 
 use super::requests;
-use crate::ALLOCATOR;
+use hadron_base::ALLOCATOR;
 use crate::boot::{
     arch::{
         memory_map::{MemoryMapEntry, MemoryRegionType},
@@ -340,8 +340,7 @@ fn limine_stage_2() -> ! {
     log::debug!("BOOT: constructing memory map...");
     let mut memory_map = MemoryMap::from_bootstrap(&mut boot_info.memory_map, &mut page_table);
 
-    // We can't run the drop code, since it is `null`
-    core::mem::forget(PAGE_TABLE.replace(page_table));
+    unsafe { PAGE_TABLE.replace_uninit(page_table) };
     // We can free the memory map and unmap it
     let mapped_range = boot_info.memory_map.mapped_range();
     memory_map.push_entry(MemoryMapEntry {
@@ -349,7 +348,7 @@ fn limine_stage_2() -> ! {
         length: mapped_range.1,
         memory_type: MemoryRegionType::Usable,
     });
-    // TODO: Can we somehow make it type safe so that the old memory map is not used?
+    // boot_info.memory_map.deinit();
     log::debug!("BOOT: constructing frame allocator...");
     let mut frame_allocator = KernelFrameAllocator::new(memory_map);
     log::debug!("BOOT: freeing bootloader memory...");
@@ -358,8 +357,7 @@ fn limine_stage_2() -> ! {
     let rsdp = boot_info.rsdp_addr;
     let total_pages = frame_allocator.total_pages();
     log::debug!("BOOT: pages available: {}", total_pages);
-    // We can't run the drop code, since it is `null`
-    core::mem::forget(FRAME_ALLOCATOR.replace(frame_allocator));
+    unsafe { FRAME_ALLOCATOR.replace_uninit(frame_allocator) };
 
     log::debug!("Jumping to kernel main");
     jump_to_kernel_main(KernelParams { rsdp });
@@ -368,7 +366,7 @@ fn limine_stage_2() -> ! {
 fn init_heap() {
     let boot_info = unsafe { boot_info_mut() };
     log::debug!("BOOT: setting up initial kernel heap...");
-    unsafe { crate::ALLOCATOR.init_generic(mappings::KERNEL_HEAP.as_mut_ptr(), boot_info.heap.1 as usize) };
+    unsafe { hadron_base::ALLOCATOR.init_generic(mappings::KERNEL_HEAP.as_mut_ptr(), boot_info.heap.1 as usize) };
 }
 
 fn init_logging() {

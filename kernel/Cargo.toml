@@ -10,10 +10,12 @@ test = false
 bench = false
 
 [dependencies]
+hadron-base.workspace = true
+hadron-device.workspace = true
+hadron-drivers.workspace = true
+
 spin.workspace = true
 log.workspace = true
-hadron-base.workspace = true
-hadron-drivers.workspace = true
 limine.workspace = true
 x86_64.workspace = true
 

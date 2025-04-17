@@ -20,13 +20,16 @@
 // We can remove them once they become stable
 #![feature(unsize, dispatch_from_dyn, coerce_unsized)]
 
+use base::mem::allocator::KernelAllocator;
 use x86_64::PhysAddr;
 
 pub mod base;
-pub mod dev;
 pub mod util;
 
 extern crate alloc;
+
+#[global_allocator]
+pub static ALLOCATOR: KernelAllocator= KernelAllocator::empty();
 
 #[derive(Debug, Clone, Copy)]
 pub struct KernelParams {

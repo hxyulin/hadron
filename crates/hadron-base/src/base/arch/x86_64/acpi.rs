@@ -1,4 +1,4 @@
-use alloc::{boxed::Box, collections::btree_map::BTreeMap, sync::Arc};
+use alloc::{boxed::Box, collections::btree_map::BTreeMap, sync::Arc, vec::Vec};
 use spin::Mutex;
 use x86_64::{
     PhysAddr, VirtAddr,
@@ -11,13 +11,21 @@ use crate::{
         info::kernel_info,
         mem::{map_page, unmap_page},
     },
-    dev::{
-        DeviceRegistry,
-        pci::{PCIDeviceTree, PCIeConfigSpace},
-    },
     util::timer::hpet::Hpet,
 };
 use core::ptr::NonNull;
+
+use core::ops::RangeInclusive;
+
+#[derive(Debug, Clone)]
+pub struct PCIeBusRegion {
+    pub bus_range: RangeInclusive<u8>,
+    pub base_address: PhysAddr,
+}
+
+pub struct AcpiResult {
+    pub pcie_regions: Vec<PCIeBusRegion>,
+}
 
 /// Initialize the ACPI subsystem
 ///
@@ -26,7 +34,7 @@ use core::ptr::NonNull;
 /// - Setting up the RSDP
 /// - Finding the HPET
 /// - Finding the platform info
-pub fn init(rsdp: PhysAddr) {
+pub fn init(rsdp: PhysAddr) -> AcpiResult {
     let mapper = AcpiMapper::new();
     let tables =
         unsafe { acpi::AcpiTables::from_rsdp(mapper, rsdp.as_u64() as usize) }.expect("failed to parse ACPI tables");
@@ -36,10 +44,13 @@ pub fn init(rsdp: PhysAddr) {
     }
     let platform_info = tables.platform_info().expect("failed to parse platform info");
     parse_platform_info(&platform_info);
+    let mut pcie_regions = Vec::new();
     match tables.find_table::<acpi::mcfg::Mcfg>() {
         Err(e) => log::warn!("ACPI: failed to parse MCFG table: {:?}", e),
-        Ok(mcfg) => parse_mcfg(&mcfg),
+        Ok(mcfg) => parse_mcfg(&mcfg, &mut pcie_regions),
     }
+
+    AcpiResult { pcie_regions }
 }
 
 fn parse_hpet_info(hpet: acpi::HpetInfo) {
@@ -83,24 +94,19 @@ fn parse_platform_info(platform_info: &acpi::PlatformInfo<alloc::alloc::Global>)
     }
 }
 
-fn parse_mcfg(mcfg: &acpi::mcfg::Mcfg) {
-    use alloc::vec::Vec;
-    // A vector of PCIeConfigSpaces
-    let mut spaces = Vec::new();
+fn parse_mcfg(mcfg: &acpi::mcfg::Mcfg, pcie_regions: &mut Vec<PCIeBusRegion>) {
     for entry in mcfg.entries() {
-        spaces.push(PCIeConfigSpace::identity_mapped(
-            PhysAddr::new(entry.base_address),
-            entry.bus_number_start..=entry.bus_number_end,
-        ));
+        pcie_regions.push(PCIeBusRegion {
+            bus_range: entry.bus_number_start..=entry.bus_number_end,
+            base_address: PhysAddr::new(entry.base_address),
+        });
     }
-    let device_tree = PCIDeviceTree::from_pcie(spaces);
-    let devices = DeviceRegistry { pci: device_tree };
-    core::mem::forget(crate::dev::DEVICES.replace(devices));
 }
 
-/// A mapper to map ACPI frames to logical addresses
+/// A mapper to map identity-map ACPI frames to logical addresses
 #[derive(Debug, Clone)]
 pub struct AcpiMapperInner {
+    // We store a list of mapped frames, so we can unmap them later, and we don't map the same frame twice
     mapped_frames: BTreeMap<u64, usize>,
 }
 

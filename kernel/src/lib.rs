@@ -1,21 +1,20 @@
 #![no_std]
 #![feature(allocator_api, vec_push_within_capacity)]
 
+use alloc::vec::Vec;
 use hadron_base::{
     KernelParams,
-    base::{arch::x86_64::acpi, mem::allocator::KernelAllocator},
-    dev::gpu::drm::DrmDriver,
+    base::arch::x86_64::acpi::{self, PCIeBusRegion},
 };
+use hadron_device::{DeviceRegistry, gpu::drm::DrmDriver, pci::PCIeConfigSpace};
 
 pub mod boot;
-
-#[global_allocator]
-pub static ALLOCATOR: KernelAllocator = KernelAllocator::empty();
 
 extern crate alloc;
 
 // We need to use extern crate to allow the linker to find the symbols
-// If we remove this, the .drivers section will be empty
+// If we remove this, the .drivers section will be empty if we don't use any exported symbols
+// To be safe, we just mark it as extern crate
 extern crate hadron_drivers;
 
 pub use boot::limine::limine_entry as kernel_entry;
@@ -34,7 +33,8 @@ extern "Rust" fn kernel_main(params: KernelParams) -> ! {
     // - HPET (or PS Timer)
     // - APICs (Local, IO)
     // - PCI devices
-    acpi::init(params.rsdp);
+    let acpi = acpi::init(params.rsdp);
+    init_devices(acpi.pcie_regions);
 
     // Initialize the drivers for the kernel
     init_drivers();
@@ -44,22 +44,26 @@ extern "Rust" fn kernel_main(params: KernelParams) -> ! {
     panic!("reached end of kernel");
 }
 
+/// Initialize the devices for the kernel
+fn init_devices(pcie_regions: Vec<PCIeBusRegion>) {
+    use hadron_device::DEVICES;
+    let spaces = pcie_regions
+        .into_iter()
+        .map(|r| PCIeConfigSpace::identity_mapped(r.base_address, r.bus_range))
+        .collect();
+    let pci = hadron_device::pci::PCIDeviceTree::from_pcie(spaces);
+    let devices = DeviceRegistry { pci };
+
+    unsafe { DEVICES.replace_uninit(devices) };
+}
+
 /// Initialize the drivers for the kernel
 ///
 /// This involes:
 /// - Finding the drivers for the devices
 fn init_drivers() {
-    unsafe extern "C" {
-        static _drm_drv_start: u8;
-        static _drm_drv_end: u8;
-    }
-    let start = &raw const _drm_drv_start as usize;
-    let end = &raw const _drm_drv_end as usize;
-    let count = (end - start) / core::mem::size_of::<DrmDriver>();
-    let start = &raw const _drm_drv_start as *const DrmDriver;
-    for i in 0..count {
-        let drv = unsafe { &*(start.add(i)) };
-        log::debug!("drv: {:#?}", drv);
+    for pci_driver in hadron_drivers::pci_drivers() {
+        log::debug!("Driver: {:?}", pci_driver);
     }
     log::debug!("CPU Features: {:#?}", hadron_base::util::cpu::cpu_features());
 }

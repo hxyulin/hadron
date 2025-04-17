@@ -23,7 +23,12 @@ impl<T> UninitMutex<T> {
         }
     }
 
-    pub fn replace(&self, data: T) -> T {
+    pub unsafe fn replace_uninit(&self, data: T) {
+        assert!(!self.lock.load(core::sync::atomic::Ordering::Relaxed));
+        unsafe { self.data.replace_uninit(data) };
+    }
+
+    pub unsafe fn replace(&self, data: T) -> T {
         assert!(!self.lock.load(core::sync::atomic::Ordering::Relaxed));
         unsafe { self.data.replace(data) }
     }

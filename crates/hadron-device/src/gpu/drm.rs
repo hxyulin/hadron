@@ -1,6 +1,6 @@
 //! The Direct Render Manager (DRM)
 //!
-use crate::util::version::SemVer;
+use hadron_base::util::version::SemVer;
 
 #[repr(C)]
 #[derive(Debug)]

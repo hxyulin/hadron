@@ -1,3 +1,4 @@
+
 //! Devices
 //!
 //! The device / driver model is inspired by the Linux kernel
@@ -8,9 +9,14 @@
 //! can be initialized from PCI devices, and will create a [`Devoce`](crate::dev::drivers::Device)
 //! for each device.
 
+#![no_std]
+#![feature(allocator_api)]
+
+extern crate alloc;
+
 use core::{alloc::Allocator, ptr::NonNull};
 
-use crate::base::mem::sync::UninitMutex;
+use hadron_base::base::mem::sync::UninitMutex;
 
 pub mod gpu;
 pub mod helpers;
