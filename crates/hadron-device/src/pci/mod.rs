@@ -21,6 +21,13 @@ pub struct PCIDev {
     pub dev: Device,
 }
 
+#[derive(Debug)]
+pub struct PCIDriver {
+    pub name: &'static str,
+    pub id_table: &'static [PCIDeviceId],
+    pub probe: fn(pci_dev: &mut PCIDev, pci_id: &PCIDeviceId) -> u32,
+}
+
 #[derive(Clone, Copy, Eq, PartialOrd, Ord)]
 pub struct PCIDeviceId {
     /// The vendor ID of the device, use 0xFFFF for any vendor
@@ -100,6 +107,14 @@ pub struct PCIDeviceTree {
 }
 
 impl PCIDeviceTree {
+    pub const fn empty() -> Self {
+        Self {
+            root: PCIDeviceTreeNode::Bus(PCIBusDevice {
+                bus_number: 255,
+                devices: Vec::new(),
+            }),
+        }
+    }
     pub fn iter(&self) -> PCIDeviceTreeIter {
         PCIDeviceTreeIter::new(&self.root)
     }

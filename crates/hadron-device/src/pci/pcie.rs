@@ -6,8 +6,8 @@ use x86_64::{
     structures::paging::{Page, PageSize, PageTableFlags, PhysFrame, Size2MiB},
 };
 
-use hadron_base::base::mem::page_table::PageTable;
 use crate::DeviceClass;
+use hadron_base::base::mem::page_table::PageTable;
 
 /// The size of a PCIe device in bytes
 const DEVICE_SIZE: u64 = 8 * 4096;
@@ -342,10 +342,7 @@ fn parse_bus(spaces: &[PCIeConfigSpace], bus: &PCIeBus) -> super::PCIBusDevice {
                 super::PCIDev {
                     bars: function.get_bars(),
                     revision,
-                    dev: crate::Device {
-                        allocator: crate::DeviceAllocator {},
-                        driver_data: None,
-                    },
+                    dev: crate::Device::new(),
                 },
                 super::PCIDeviceId {
                     vendor,

@@ -1,5 +1,5 @@
 [package]
-name = "driver-macros"
+name = "hadron-driver-macros"
 version.workspace = true
 edition.workspace = true
 

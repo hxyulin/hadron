@@ -1,10 +1,11 @@
-use alloc::{boxed::Box, vec::Vec};
+use alloc::{boxed::Box, string::String, vec::Vec};
 use core::fmt::Write;
 use log::Log;
 use spin::{Mutex, MutexGuard};
 
 use super::timer::time_since_boot;
 
+pub mod console;
 pub mod framebuffer;
 pub mod serial;
 
@@ -17,39 +18,25 @@ pub trait Writer: Write + Send + Sync {
     fn get_type(&self) -> WriterType;
 }
 
-struct FallbackFnTable {
-    write_str: fn(&str) -> core::fmt::Result,
-    write_fmt: fn(core::fmt::Arguments<'_>) -> core::fmt::Result,
-}
-
-impl FallbackFnTable {
-    const fn default() -> Self {
-        Self {
-            write_str: fallback_write_str,
-            write_fmt: fallback_write_fmt,
-        }
-    }
-}
-
-fn fallback_write_str(_s: &str) -> core::fmt::Result {
-    Ok(())
-}
-fn fallback_write_fmt(_args: core::fmt::Arguments<'_>) -> core::fmt::Result {
-    Ok(())
-}
-
 /// The main writer for the kernel, which can be used for logging.
-pub struct KernelWriter {
+pub struct BufferedWriter {
+    buffer: Mutex<String>,
     outputs: Mutex<Vec<Box<dyn Writer>>>,
-    fallback: Mutex<FallbackFnTable>,
 }
 
-impl KernelWriter {
+impl BufferedWriter {
+    const BUFFER_SIZE: usize = 1024;
+
     pub const fn empty() -> Self {
         Self {
+            buffer: Mutex::new(String::new()),
             outputs: Mutex::new(Vec::new()),
-            fallback: Mutex::new(FallbackFnTable::default()),
         }
+    }
+
+    /// You must call this before using the writer, otherwise it will panic, as the buffer is 0 sized.
+    pub fn init(&self) {
+        self.buffer.lock().reserve_exact(Self::BUFFER_SIZE);
     }
 
     pub fn outputs(&self) -> MutexGuard<'_, Vec<Box<dyn Writer>>> {
@@ -60,44 +47,43 @@ impl KernelWriter {
         self.outputs.lock().push(output);
     }
 
-    pub fn remove_fallback(&self) {
-        let mut fallback = self.fallback.lock();
-        fallback.write_str = fallback_write_str;
-        fallback.write_fmt = fallback_write_fmt;
+    fn buf_flush(&self, buf: &mut String) {
+        let mut outputs = self.outputs.lock();
+        for device in outputs.iter_mut() {
+            device.write_str(buf.as_str()).unwrap();
+        }
+        buf.clear();
     }
 
-    pub fn add_fallback(
-        &self,
-        write_str: fn(&str) -> core::fmt::Result,
-        write_fmt: fn(core::fmt::Arguments<'_>) -> core::fmt::Result,
-    ) {
-        let mut fallback = self.fallback.lock();
-        fallback.write_str = write_str;
-        fallback.write_fmt = write_fmt;
+    pub fn flush(&self) {
+        let mut buffer = self.buffer.lock();
+        self.buf_flush(&mut buffer);
     }
 
+    // PERF: This is very slow, and flushing takes over 0.06s
     pub fn write_str(&self, s: &str) -> core::fmt::Result {
-        let mut outputs = self.outputs.lock();
-        if outputs.is_empty() {
-            (self.fallback.lock().write_str)(s)?;
+        let mut buffer = self.buffer.lock();
+        if buffer.len() + s.len() < Self::BUFFER_SIZE {
+            buffer.push_str(s);
         } else {
-            for device in outputs.iter_mut() {
-                device.write_str(s)?;
-            }
+            self.buf_flush(&mut buffer);
+            buffer.push_str(s);
         }
         Ok(())
     }
 
-    pub fn write_fmt(&self, args: core::fmt::Arguments<'_>) -> core::fmt::Result {
-        let mut outputs = self.outputs.lock();
-        if outputs.is_empty() {
-            (self.fallback.lock().write_fmt)(args)?;
-        } else {
-            for device in outputs.iter_mut() {
-                device.write_fmt(args)?;
+    pub fn write_fmt(&self, args: core::fmt::Arguments) -> core::fmt::Result {
+        struct Writer<'a> {
+            inner: &'a BufferedWriter,
+        }
+
+        impl core::fmt::Write for Writer<'_> {
+            fn write_str(&mut self, s: &str) -> core::fmt::Result {
+                self.inner.write_str(s)
             }
         }
-        Ok(())
+
+        Writer { inner: self }.write_fmt(args)
     }
 }
 
@@ -117,20 +103,32 @@ impl Log for KernelLogger {
         ));
     }
 
-    fn flush(&self) {}
+    fn flush(&self) {
+        WRITER.flush();
+    }
 }
 
-pub static LOGGER: KernelLogger = KernelLogger;
-pub static WRITER: KernelWriter = KernelWriter::empty();
+/// The default writer for the kernel, which can be used for logging kernel messages.
+/// At early boot, this will print to serial and/or the framebuffer.
+pub static WRITER: BufferedWriter = BufferedWriter::empty();
 
+/// The logger for the kernel, which can be used for logging kernel messages.
+/// This uses [`WRITER`] internally.
+pub static LOGGER: KernelLogger = KernelLogger;
+
+/// Prints a formatted string to the default writer.
 #[macro_export]
 macro_rules! print {
     ($($arg:tt)*) => { $crate::util::logging::WRITER.write_fmt(format_args!($($arg)*)).unwrap() }
 }
 
+/// Prints a formatted string to the default writer, appending a newline.
 #[macro_export]
 macro_rules! println {
+    // Empty string, just print a newline
     () => { $crate::print!("\n") };
+    // No arguments, just print the string
     (fmt:expr) => { $crate::print!(concat!($fmt, "\n")) };
+    // One or more arguments, print the string and the arguments
     ($fmt:expr, $($arg:tt)*) => { $crate::print!(concat!($fmt, "\n"), $($arg)*) };
 }

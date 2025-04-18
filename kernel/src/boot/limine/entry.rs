@@ -2,13 +2,13 @@ use core::fmt::Arguments;
 
 use alloc::boxed::Box;
 use hadron_base::base::mem::allocator::FrameBasedAllocator;
+use hadron_device::Device;
 use x86_64::{
     PhysAddr, VirtAddr,
     structures::paging::{FrameAllocator, PageSize, PageTableFlags, PhysFrame, Size4KiB},
 };
 
 use super::requests;
-use hadron_base::ALLOCATOR;
 use crate::boot::{
     arch::{
         memory_map::{MemoryMapEntry, MemoryRegionType},
@@ -16,6 +16,7 @@ use crate::boot::{
     },
     info::boot_info_mut,
 };
+use hadron_base::ALLOCATOR;
 use hadron_base::{
     KernelParams,
     base::mem::{
@@ -39,32 +40,17 @@ use hadron_base::{
 static SERIAL: RacyCell<Option<SerialWriter>> = RacyCell::new(None);
 static FRAMEBUFFER: RacyCell<Option<FramebufferWriter>> = RacyCell::new(None);
 
-fn write_str(s: &str) -> core::fmt::Result {
+fn write_fmt(args: Arguments) {
     use core::fmt::Write;
     if let Some(serial) = SERIAL.get_mut().as_mut() {
-        serial.write_str(s)?;
-    }
-
-    if let Some(framebuffer) = FRAMEBUFFER.get_mut().as_mut() {
-        framebuffer.write_str(s)?;
-    }
-
-    Ok(())
-}
-
-fn write_fmt(args: Arguments) -> core::fmt::Result {
-    use core::fmt::Write;
-    if let Some(serial) = SERIAL.get_mut().as_mut() {
-        serial.write_fmt(args)?;
+        serial.write_fmt(args).unwrap();
     }
     if let Some(framebuffer) = FRAMEBUFFER.get_mut().as_mut() {
-        framebuffer.write_fmt(args)?;
+        framebuffer.write_fmt(args).unwrap();
     }
-    Ok(())
 }
 
 pub fn limine_entry() -> ! {
-    // TODO: We need to parse the framebuffer here as well
     init_core();
     populate_boot_info();
     allocate_pages();
@@ -107,10 +93,6 @@ pub fn limine_print_panic(info: &core::panic::PanicInfo) {
 fn init_core() {
     x86_64::instructions::interrupts::disable();
 
-    log::set_logger(&LOGGER).unwrap();
-    log::set_max_level(log::LevelFilter::Trace);
-    WRITER.add_fallback(write_str, write_fmt);
-
     // We initialize the seiral port so it is available for printing
     SERIAL.get_mut().replace({
         let mut serial = SerialWriter::new(0x3F8);
@@ -127,7 +109,7 @@ fn init_core() {
 
     // We want the framebuffer as early as possible
     let framebuffers = requests::FRAMEBUFFER.get_response().unwrap().framebuffers();
-    log::debug!("BOOT: found {} framebuffers", framebuffers.len());
+    write_fmt(format_args!("BOOT: found {} framebuffers\n", framebuffers.len()));
 
     let fb = framebuffers.first().unwrap();
     let fb_info = FramebufferInfo {
@@ -144,11 +126,15 @@ fn init_core() {
         .replace(FramebufferWriter::new(Framebuffer::new(fb_info, fb)));
 
     let response = requests::BOOTLOADER_INFO.get_response().unwrap();
-    log::debug!("BOOT: booted from {} {}", response.name(), response.version());
+    write_fmt(format_args!(
+        "BOOT: booted from {} {}\n",
+        response.name(),
+        response.version()
+    ));
 
-    log::debug!("BOOT: initializing GDT...");
+    write_fmt(format_args!("BOOT: initializing GDT...\n"));
     hadron_base::base::arch::x86_64::gdt::init();
-    log::debug!("BOOT: initializing IDT...");
+    write_fmt(format_args!("BOOT: initializing IDT...\n"));
     hadron_base::base::arch::x86_64::idt::init();
 }
 
@@ -163,20 +149,26 @@ fn populate_boot_info() {
     let boot_info = unsafe { boot_info_mut() };
     let hhdm = requests::HHDM.get_response().unwrap();
     boot_info.hhdm_offset = hhdm.offset;
-    log::debug!("BOOT: hhdm_offset: {:#x}", boot_info.hhdm_offset);
+    write_fmt(format_args!("BOOT: hhdm_offset: {:#x}\n", boot_info.hhdm_offset));
     let kernel_addr = requests::EXECUTABLE_ADDRESS.get_response().unwrap();
     boot_info.kernel_start_phys = PhysAddr::new(kernel_addr.physical_address);
     boot_info.kernel_start_virt = VirtAddr::new(kernel_addr.virtual_address);
-    log::debug!("BOOT: kernel loaded at {:#x}", boot_info.kernel_start_virt);
-    log::debug!("BOOT: hhdm offset: {:#x}", boot_info.hhdm_offset);
+    write_fmt(format_args!(
+        "BOOT: kernel loaded at {:#x}\n",
+        boot_info.kernel_start_virt
+    ));
+    write_fmt(format_args!("BOOT: hhdm offset: {:#x}\n", boot_info.hhdm_offset));
 
     // TODO: parse modules
 
-    log::debug!("BOOT: parsing memory map...");
+    write_fmt(format_args!("BOOT: parsing memory map...\n"));
     boot_info
         .memory_map
         .parse_from_limine(requests::MEMORY_MAP.get_response().unwrap(), boot_info.hhdm_offset);
-    log::debug!("BOOT: total memory available: {:#?}", boot_info.memory_map.total_size());
+    write_fmt(format_args!(
+        "BOOT: total memory available: {:#?}\n",
+        boot_info.memory_map.total_size()
+    ));
     let rsdp = requests::RSDP.get_response().unwrap();
     boot_info.rsdp_addr = PhysAddr::new(rsdp.address);
 }
@@ -196,7 +188,7 @@ fn allocate_pages() -> ! {
     let boot_info = unsafe { boot_info_mut() };
     let (mm_start, mm_len) = boot_info.memory_map.mapped_range();
     let mut frame_allocator = BasicFrameAllocator::new(&mut boot_info.memory_map);
-    log::debug!("BOOT: calculating pages to allocate for page table");
+    write_fmt(format_args!("BOOT: calculating pages to allocate for page table\n"));
     let kernel_size = get_kernel_size();
     let mut pages_to_allocate = 0;
     pages_to_allocate += calculate_pages_needed(kernel_size.0 / Size4KiB::SIZE as usize);
@@ -225,7 +217,7 @@ fn allocate_pages() -> ! {
     let start_phys = boot_info.kernel_start_phys;
     assert!(
         (boot_info.kernel_start_virt + kernel_size.0 as u64 + kernel_size.1 as u64) < mappings::KERNEL_TEXT_END,
-        "Kernel is too large"
+        "Kernel is too large\n"
     );
 
     // Map text section with execute permissions
@@ -283,6 +275,10 @@ fn allocate_pages() -> ! {
         )
     }
 
+    // TODO: Instead of mapping the framebuffer, we should just leave it to the platform driver,
+    // instead just storing the width, height, bpp, stride, and the base address, and returning
+    // that to the driver
+
     // Map framebuffer
     if let Some(framebuffer) = FRAMEBUFFER.get().as_ref() {
         let fb_virt = VirtAddr::new(framebuffer.fb_addr() as u64);
@@ -304,9 +300,6 @@ fn allocate_pages() -> ! {
     }
 
     let page_table_ptr = page_table.as_phys_addr().as_u64();
-
-    // TODO: Manually free the memory map
-    //allocator.deinit(&mut frame_allocator, boot_info.hhdm_offset);
 
     // Setup the page tables, switch to the new stack, and push a null pointer to the stack
     unsafe {
@@ -341,7 +334,7 @@ fn limine_stage_2() -> ! {
     let mut memory_map = MemoryMap::from_bootstrap(&mut boot_info.memory_map, &mut page_table);
 
     unsafe { PAGE_TABLE.replace_uninit(page_table) };
-    // We can free the memory map and unmap it
+    // We can free the memory map and unmap it, we can do this by just inserting a new entry
     let mapped_range = boot_info.memory_map.mapped_range();
     memory_map.push_entry(MemoryMapEntry {
         base: PhysAddr::new((mapped_range.0 - boot_info.hhdm_offset).as_u64()),
@@ -365,12 +358,14 @@ fn limine_stage_2() -> ! {
 
 fn init_heap() {
     let boot_info = unsafe { boot_info_mut() };
-    log::debug!("BOOT: setting up initial kernel heap...");
+    write_fmt(format_args!("BOOT: setting up initial kernel heap...\n"));
     unsafe { hadron_base::ALLOCATOR.init_generic(mappings::KERNEL_HEAP.as_mut_ptr(), boot_info.heap.1 as usize) };
 }
 
 fn init_logging() {
-    WRITER.remove_fallback();
+    log::set_logger(&LOGGER).unwrap();
+    log::set_max_level(log::LevelFilter::Trace);
+
     let serial = SERIAL.get_mut().take().unwrap();
     WRITER.add_output(Box::new(serial));
     let fb = FRAMEBUFFER.get_mut().take().unwrap();
@@ -398,9 +393,14 @@ fn get_kernel_size() -> (usize, usize) {
         let start = &_kernel_text_start as *const u8 as usize;
         let end = &_kernel_end as *const u8 as usize;
         let data_start = &_kernel_data_start as *const u8 as usize;
-        (
-            (data_start - start + 0xFFF) & !0xFFF,
-            (end - data_start + 0xFFF) & !0xFFF,
-        )
+        assert!(
+            (data_start - start) % 0x1000 == 0,
+            "Kernel text section is not page aligned"
+        );
+        assert!(
+            (end - data_start) % 0x1000 == 0,
+            "Kernel data section is not page aligned"
+        );
+        (data_start - start, end - data_start)
     }
 }

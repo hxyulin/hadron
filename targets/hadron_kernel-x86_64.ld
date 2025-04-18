@@ -1,6 +1,6 @@
 OUTPUT_FORMAT(elf64-x86-64)
 /* We need to make sure the linker actually looks into hadron_drivers.rlib */
-EXTERN(INCLUDE_DRV_DRIVERS)
+EXTERN(INCLUDE_DEV_DRIVERS)
 ENTRY(kernel_entry)
 
 
@@ -46,9 +46,13 @@ SECTIONS
     } :rodata
 
     .drivers : ALIGN(4) {
-        _drm_drv_start = .;
-        KEEP(*(.drm_drivers .drm_drivers.*))
-        _drm_drv_end = .;
+        _pci_drv_start = .;
+        KEEP(*(.pci_drivers .pci_drivers.*))
+        _pci_drv_end = .;
+
+        _platform_drv_start = .;
+        KEEP(*(.platform_drivers .platform_drivers.*))
+        _platform_drv_end = .;
     } :rodata
 
     . = ALIGN(CONSTANT(MAXPAGESIZE));

@@ -6,7 +6,7 @@ use hadron_base::{
     KernelParams,
     base::arch::x86_64::acpi::{self, PCIeBusRegion},
 };
-use hadron_device::{DeviceRegistry, gpu::drm::DrmDriver, pci::PCIeConfigSpace};
+use hadron_device::{DeviceRegistry, pci::PCIeConfigSpace};
 
 pub mod boot;
 
@@ -52,9 +52,7 @@ fn init_devices(pcie_regions: Vec<PCIeBusRegion>) {
         .map(|r| PCIeConfigSpace::identity_mapped(r.base_address, r.bus_range))
         .collect();
     let pci = hadron_device::pci::PCIDeviceTree::from_pcie(spaces);
-    let devices = DeviceRegistry { pci };
-
-    unsafe { DEVICES.replace_uninit(devices) };
+    DEVICES.write().pci = pci;
 }
 
 /// Initialize the drivers for the kernel
@@ -63,7 +61,12 @@ fn init_devices(pcie_regions: Vec<PCIeBusRegion>) {
 /// - Finding the drivers for the devices
 fn init_drivers() {
     for pci_driver in hadron_drivers::pci_drivers() {
+        for _ in 0..100 {
         log::debug!("Driver: {:?}", pci_driver);
+        }
+    }
+    for platform_driver in hadron_drivers::platform_drivers() {
+        log::debug!("Driver: {:?}", platform_driver);
     }
     log::debug!("CPU Features: {:#?}", hadron_base::util::cpu::cpu_features());
 }

@@ -1,6 +1,9 @@
-use serde_derive::{Deserialize, Serialize};
 use core::convert::AsRef;
-use std::{path::{Path, PathBuf}, str::FromStr};
+use serde_derive::{Deserialize, Serialize};
+use std::{
+    path::{Path, PathBuf},
+    str::FromStr,
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum Target {

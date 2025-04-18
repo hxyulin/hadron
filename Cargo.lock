@@ -263,10 +263,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "driver-macros"
-version = "0.0.1"
-
-[[package]]
 name = "either"
 version = "1.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -400,15 +396,28 @@ dependencies = [
  "bitflags 2.9.0",
  "hadron-base",
  "log",
+ "spin 0.10.0",
  "x86_64",
 ]
+
+[[package]]
+name = "hadron-driver-api"
+version = "0.0.1"
+dependencies = [
+ "hadron-base",
+ "hadron-device",
+]
+
+[[package]]
+name = "hadron-driver-macros"
+version = "0.0.1"
 
 [[package]]
 name = "hadron-drivers"
 version = "0.0.1"
 dependencies = [
- "hadron-base",
- "hadron-device",
+ "hadron-driver-api",
+ "log",
 ]
 
 [[package]]

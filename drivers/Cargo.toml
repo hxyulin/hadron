@@ -8,5 +8,5 @@ test = false
 bench = false
 
 [dependencies]
-hadron-base.workspace = true
-hadron-device.workspace = true
+hadron-driver-api.workspace = true
+log.workspace = true

@@ -1,4 +1,3 @@
-
 //! Devices
 //!
 //! The device / driver model is inspired by the Linux kernel
@@ -16,11 +15,16 @@ extern crate alloc;
 
 use core::{alloc::Allocator, ptr::NonNull};
 
+use alloc::vec::Vec;
 use hadron_base::base::mem::sync::UninitMutex;
+use spin::RwLock;
 
 pub mod gpu;
 pub mod helpers;
+pub mod mem;
+
 pub mod pci;
+pub mod platform;
 
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -55,7 +59,7 @@ pub enum DeviceClass {
 /// The device registry
 ///
 /// See [`DeviceRegistry`](crate::dev::DeviceRegistry) for more information
-pub static DEVICES: UninitMutex<DeviceRegistry> = UninitMutex::uninit();
+pub static DEVICES: RwLock<DeviceRegistry> = RwLock::new(DeviceRegistry::empty());
 
 /// A centralized registry of devices
 ///
@@ -63,6 +67,18 @@ pub static DEVICES: UninitMutex<DeviceRegistry> = UninitMutex::uninit();
 pub struct DeviceRegistry {
     /// Represents devices on the PCI bus
     pub pci: pci::PCIDeviceTree,
+    pub platform: platform::PlatformDeviceTree,
+}
+
+// For now platform devices are just a list
+
+impl DeviceRegistry {
+    pub const fn empty() -> Self {
+        Self {
+            pci: pci::PCIDeviceTree::empty(),
+            platform: platform::PlatformDeviceTree::empty(),
+        }
+    }
 }
 
 /// The base device
@@ -72,12 +88,49 @@ pub struct Device {
     ///
     /// All allocations made by the device will be allocated from this allocator
     /// This ensures that memory allocated will be deallocated when the device is dropped
-    allocator: DeviceAllocator,
+    pub allocator: DeviceAllocator,
+
+    /// A memory mapper for the device
+    ///
+    /// All memory mapped regions should be done using this mapper
+    pub mapper: DeviceMapper,
 
     /// Driver data for the device
     ///
     /// Drivers should only store their data here, and avoid using any state anywhere else
-    driver_data: Option<NonNull<core::ffi::c_void>>,
+    pub driver_data: Option<NonNull<core::ffi::c_void>>,
+
+    /// The device's virtual table
+    ///
+    /// This contains generic device functions
+    /// TODO: Maybe we should combine this with the driver data, so that we have a unified data structure
+    /// that is optional
+    pub vtable: Option<DeviceVTable>,
+}
+
+impl Device {
+    pub fn new() -> Self {
+        Self {
+            allocator: DeviceAllocator {},
+            mapper: DeviceMapper {
+                mapped_regions: Vec::new(),
+            },
+            driver_data: None,
+            vtable: None,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct DeviceVTable {}
+
+// TODO: Make it actually safe to share across cores
+unsafe impl Send for Device {}
+unsafe impl Sync for Device {}
+
+#[derive(Debug)]
+struct DeviceMapper {
+    mapped_regions: Vec<mem::MMRegion>,
 }
 
 #[derive(Debug)]

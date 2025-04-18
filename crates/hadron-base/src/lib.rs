@@ -29,7 +29,7 @@ pub mod util;
 extern crate alloc;
 
 #[global_allocator]
-pub static ALLOCATOR: KernelAllocator= KernelAllocator::empty();
+pub static ALLOCATOR: KernelAllocator = KernelAllocator::empty();
 
 #[derive(Debug, Clone, Copy)]
 pub struct KernelParams {

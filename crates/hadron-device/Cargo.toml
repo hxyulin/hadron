@@ -9,3 +9,4 @@ hadron-base.workspace = true
 x86_64.workspace = true
 log.workspace = true
 bitflags.workspace = true
+spin.workspace = true

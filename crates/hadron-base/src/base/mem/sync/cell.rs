@@ -48,7 +48,10 @@ impl<T> UninitCell<T> {
     }
 
     pub unsafe fn get(&self) -> &T {
-        debug_assert!(self.is_initialized(), "UninitCell::get is called on an uninitialized cell");
+        debug_assert!(
+            self.is_initialized(),
+            "UninitCell::get is called on an uninitialized cell"
+        );
         unsafe { self.0.get().assume_init_ref() }
     }
 
@@ -57,7 +60,7 @@ impl<T> UninitCell<T> {
     ///
     /// # Safety
     /// - The cell must be uninitialized, because the destructor of the value won't be called
-    pub unsafe fn replace_uninit(&self, value: T)  {
+    pub unsafe fn replace_uninit(&self, value: T) {
         core::mem::forget(self.0.replace(MaybeUninit::new(value)));
     }
 
@@ -68,12 +71,18 @@ impl<T> UninitCell<T> {
     /// - The cell must be initialized
     pub unsafe fn replace(&self, value: T) -> T {
         let mut val = self.0.replace(MaybeUninit::new(value));
-        assert!(!val.as_mut_ptr().is_null(), "UninitCell::replace is called on an uninitialized cell");
+        assert!(
+            !val.as_mut_ptr().is_null(),
+            "UninitCell::replace is called on an uninitialized cell"
+        );
         unsafe { val.assume_init() }
     }
 
     pub unsafe fn get_mut(&self) -> &mut T {
-        debug_assert!(self.is_initialized(), "UninitCell::get_mut is called on an uninitialized cell");
+        debug_assert!(
+            self.is_initialized(),
+            "UninitCell::get_mut is called on an uninitialized cell"
+        );
         unsafe { self.0.get_mut().assume_init_mut() }
     }
 

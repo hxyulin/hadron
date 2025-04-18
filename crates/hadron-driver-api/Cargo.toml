@@ -1,0 +1,8 @@
+[package]
+name = "hadron-driver-api"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+hadron-base.workspace = true
+hadron-device.workspace = true
