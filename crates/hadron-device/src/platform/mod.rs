@@ -1,8 +1,5 @@
-use core::any::Any;
-
-use alloc::{boxed::Box, vec::Vec};
+use alloc::vec::Vec;
 use hadron_base::util::typing::AnyVec;
-use x86_64::PhysAddr;
 
 use crate::Device;
 

@@ -133,6 +133,7 @@ impl PCIeDevice {
         unsafe { self.read_internal::<T>(offset as u16) }
     }
 
+    #[allow(unused)]
     pub fn write<T>(&mut self, offset: PCIeFunctionOffset, value: T) {
         unsafe { self.write_internal::<T>(offset as u16, value) };
     }
@@ -141,6 +142,7 @@ impl PCIeDevice {
         unsafe { (self.base + offset as u64).as_ptr::<T>().read_volatile() }
     }
 
+    #[allow(unused)]
     unsafe fn write_internal<T>(&mut self, offset: u16, value: T) {
         unsafe { (self.base + offset as u64).as_mut_ptr::<T>().write_volatile(value) }
     }
@@ -297,20 +299,22 @@ impl super::PCIDeviceTree {
     }
 }
 
-fn get_bus_base(spaces: &[PCIeConfigSpace], bus: &PCIeBus) -> VirtAddr {
+fn get_bus_base(spaces: &[PCIeConfigSpace], bus: &PCIeBus) -> Option<VirtAddr> {
     for space in spaces {
         if !space.contains_bus(bus.bus) {
             continue;
         }
         let offset = (bus.bus - *space.buses.start()) as u64 * BUS_SIZE;
-        return space.virt_base + offset;
+        return Some(space.virt_base + offset);
     }
 
-    panic!("PCI: bus {} not found", bus.bus);
+    // That bus is not present
+    None
 }
 
+// TODO: Make this return a Option<PCIBusDevice>
 fn parse_bus(spaces: &[PCIeConfigSpace], bus: &PCIeBus) -> super::PCIBusDevice {
-    let base = get_bus_base(spaces, bus);
+    let base = get_bus_base(spaces, bus).expect("PCI: bus not found");
     let mut devices = Vec::new();
     for i in 0u64..32u64 {
         let mut device = super::PCIDevice::empty(i as u8);
@@ -343,6 +347,7 @@ fn parse_bus(spaces: &[PCIeConfigSpace], bus: &PCIeBus) -> super::PCIBusDevice {
                     bars: function.get_bars(),
                     revision,
                     dev: crate::Device::new(),
+                    caps: function.capabilities(),
                 },
                 super::PCIDeviceId {
                     vendor,

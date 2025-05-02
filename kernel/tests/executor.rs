@@ -7,17 +7,17 @@
 
 use core::sync::atomic::{AtomicU32, Ordering};
 
-use hadron_kernel::base::{
+use hadron_base::base::{
     mem::sync::RacyCell,
     task::{KernelTask, executor::BasicExecutor, yield_now},
 };
-use hadron_test::{println, test_entry};
+use hadron_test::test_entry;
 
 test_entry!(kernel_entry, init);
 
 fn init() {
     static HEAP: RacyCell<[u8; 4096]> = RacyCell::new([0; 4096]);
-    unsafe { hadron_kernel::ALLOCATOR.init_generic(HEAP.get_mut().as_mut_ptr(), 4096) };
+    unsafe { hadron_base::ALLOCATOR.init_generic(HEAP.get_mut().as_mut_ptr(), 4096) };
 }
 
 /// A basic test case to test cooperative multitasking.

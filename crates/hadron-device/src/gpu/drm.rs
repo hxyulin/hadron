@@ -1,6 +1,4 @@
 //! The Direct Render Manager (DRM)
-//!
-use hadron_base::util::version::SemVer;
 
 bitflags::bitflags! {
     #[repr(transparent)]

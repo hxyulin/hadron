@@ -1,12 +1,15 @@
 #![no_std]
-#![feature(allocator_api, vec_push_within_capacity)]
+#![no_main]
+#![feature(custom_test_frameworks, allocator_api, vec_push_within_capacity)]
+#![test_runner(crate::tests::test_runner)]
+#![reexport_test_harness_main = "test_main"]
 
 use alloc::vec::Vec;
 use hadron_base::{
     KernelParams,
     base::arch::x86_64::acpi::{self, PCIeBusRegion},
 };
-use hadron_device::{DeviceRegistry, pci::PCIeConfigSpace};
+use hadron_device::pci::PCIeConfigSpace;
 
 pub mod boot;
 
@@ -26,6 +29,9 @@ pub use boot::limine::limine_entry as kernel_entry;
 /// This function is only called once.
 #[unsafe(no_mangle)]
 extern "Rust" fn kernel_main(params: KernelParams) -> ! {
+    let span = tracing::span!(tracing::Level::TRACE, "kernel_main");
+    let _enter = span.enter();
+
     log::debug!("initializing kernel");
 
     // Initialize ACPI info
@@ -61,9 +67,7 @@ fn init_devices(pcie_regions: Vec<PCIeBusRegion>) {
 /// - Finding the drivers for the devices
 fn init_drivers() {
     for pci_driver in hadron_drivers::pci_drivers() {
-        for _ in 0..100 {
         log::debug!("Driver: {:?}", pci_driver);
-        }
     }
     for platform_driver in hadron_drivers::platform_drivers() {
         log::debug!("Driver: {:?}", platform_driver);
@@ -79,8 +83,23 @@ pub fn kernel_panic(info: &core::panic::PanicInfo) -> ! {
     } else {
         use hadron_base::util::backtrace::panic_backtrace;
         panic_backtrace(info);
+        log::logger().flush();
         loop {
             x86_64::instructions::hlt();
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[unsafe(no_mangle)]
+    extern "C" fn kernel_entry() -> ! {
+        crate::kernel_entry()
+    }
+
+    pub fn test_runner(tests: &[&dyn Fn()]) {
+        for test in tests {
+            test();
         }
     }
 }

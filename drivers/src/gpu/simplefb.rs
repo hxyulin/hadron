@@ -17,10 +17,9 @@ pub struct SimpleFbDev {
     pub pitch: u32,
 }
 
-fn probe(dev: &PlatformDev) -> u32 {
+fn probe(_dev: &PlatformDev) -> u32 {
     // Data contains is:
     // 0: FramebufferInfo
     // 1: PhysAddr (of the framebuffer)
-    log::info!("Device name: {}", dev.name);
     0
 }

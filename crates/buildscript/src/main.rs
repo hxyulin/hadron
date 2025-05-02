@@ -63,6 +63,15 @@ fn build(run: bool) {
     if !config.debug {
         command.args(&["--release"]);
     }
+    let mut features = Vec::new();
+    if config.serial {
+        features.push("printk_serial");
+    }
+
+    if !features.is_empty() {
+        command.args(&["--features", &features.join(",")]);
+    }
+
     command.args(&["--target", "targets/x86_64-unknown-hadron.json"]);
     command.args(&[
         "-Zbuild-std=core,alloc,compiler_builtins",
@@ -82,6 +91,7 @@ fn menuconfig() {
     println!("Running menuconfig");
     let mut command = Command::new("cargo");
     command.arg("run");
+    command.arg("--quiet");
     command.args(&["--package", "menuconfig"]);
     command.args(&["--", env!("CONFIG_FILE")]);
     command.status().unwrap();
@@ -89,13 +99,16 @@ fn menuconfig() {
 
 fn test() {
     println!("Running tests");
-    let mut command = Command::new("cargo");
-    command.arg("test");
-    command.args(&["--package", "hadron-kernel"]);
-    command.args(&["--target", "targets/x86_64-unknown-hadron.json"]);
-    command.args(&[
-        "-Zbuild-std=core,alloc,compiler_builtins",
-        "-Zbuild-std-features=compiler-builtins-mem",
-    ]);
-    command.status().unwrap();
+    let packages = ["hadron-kernel", "hadron-base", "hadron-device", "hadron-drivers"];
+    for package in packages {
+        let mut command = Command::new("cargo");
+        command.arg("test");
+        command.args(&["--package", package]);
+        command.args(&["--target", "targets/x86_64-unknown-hadron.json"]);
+        command.args(&[
+            "-Zbuild-std=core,alloc,compiler_builtins",
+            "-Zbuild-std-features=compiler-builtins-mem",
+        ]);
+        command.status().unwrap();
+    }
 }

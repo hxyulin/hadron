@@ -22,6 +22,33 @@ exclude = ["util"]
 version = "0.0.1"
 edition = "2024"
 
+# We have a generic image runner that we use for all the packages
+[workspace.metadata.image-runner]
+limine-branch = "v8.x-binary"
+config-file = "limine.conf"
+extra-files = []
+# We can configure this to use UEFI or BIOS
+boot-type = "bios"
+test-success-exit-code = 33
+test-args = [
+    "-device",
+    "isa-debug-exit,iobase=0xf4,iosize=0x04",
+    "-display",
+    "none",
+]
+run-args = ["-s"]
+
+run-command = [
+    "qemu-system-x86_64",
+    "-cdrom",
+    "{}",
+    "-machine",
+    "q35",
+    "-serial",
+    "stdio",
+    "-no-reboot",
+]
+
 [workspace.dependencies]
 hadron-base = { path = "crates/hadron-base", default-features = false }
 hadron-device = { path = "crates/hadron-device", default-features = false }
@@ -35,6 +62,7 @@ volatile = { path = "crates/volatile", default-features = false }
 hadron-test = { path = "crates/hadron-test", default-features = false }
 no-alloc = { path = "crates/no-alloc", default-features = false }
 
+tracing = { version = "0.1.41", default-features = false }
 x86_64 = "0.15.2"
 static_assertions = { version = "1.1.0", features = ["nightly"] }
 lazy_static = { version = "1.5.0", features = ["spin_no_std"] }

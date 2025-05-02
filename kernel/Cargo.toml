@@ -9,6 +9,11 @@ path = "src/main.rs"
 test = false
 bench = false
 
+[features]
+default = []
+# Enables the serial port driver
+printk_serial = []
+
 [dependencies]
 hadron-base.workspace = true
 hadron-device.workspace = true
@@ -18,34 +23,12 @@ spin.workspace = true
 log.workspace = true
 limine.workspace = true
 x86_64.workspace = true
+tracing.workspace = true
 
 linked_list_allocator = "0.10.5"
 
 [dev-dependencies]
 limine = { workspace = true, features = ["internal-api"] }
+static_assertions.workspace = true
+hadron-test.workspace = true
 
-[package.metadata.image-runner]
-limine-branch = "v8.x-binary"
-config-file = "limine.conf"
-extra-files = []
-# We can configure this to use UEFI or BIOS
-boot-type = "bios"
-test-success-exit-code = 33
-test-args = [
-    "-device",
-    "isa-debug-exit,iobase=0xf4,iosize=0x04",
-    "-display",
-    "none",
-]
-run-args = ["-s"]
-
-run-command = [
-    "qemu-system-x86_64",
-    "-cdrom",
-    "{}",
-    "-machine",
-    "q35",
-    "-serial",
-    "stdio",
-    "-no-reboot",
-]

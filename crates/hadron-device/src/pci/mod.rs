@@ -19,6 +19,7 @@ pub struct PCIDev {
     /// memory regions or MMIO regions of the device
     pub bars: [u32; 6],
     pub dev: Device,
+    pub caps: PCICapabilities,
 }
 
 #[derive(Debug)]

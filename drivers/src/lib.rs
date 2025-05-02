@@ -6,8 +6,10 @@
 //! - `platform_drivers`: Platform drivers
 
 #![no_std]
+// TODO: Remove this once we actually use the drivers
+#![allow(dead_code)]
 
-use hadron_driver_api::{SemVer, pci::PCIDriver, platform::PlatformDriver};
+use hadron_driver_api::{pci::PCIDriver, platform::PlatformDriver};
 
 mod gpu;
 

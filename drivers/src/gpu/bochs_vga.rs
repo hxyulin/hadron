@@ -23,6 +23,6 @@ static DRIVER: PCIDriver = PCIDriver {
     probe,
 };
 
-fn probe(pci_dev: &mut PCIDev, pci_id: &PCIDeviceId) -> u32 {
+fn probe(_pci_dev: &mut PCIDev, _pci_id: &PCIDeviceId) -> u32 {
     0
 }

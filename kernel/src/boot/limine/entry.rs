@@ -2,7 +2,6 @@ use core::fmt::Arguments;
 
 use alloc::boxed::Box;
 use hadron_base::base::mem::allocator::FrameBasedAllocator;
-use hadron_device::Device;
 use x86_64::{
     PhysAddr, VirtAddr,
     structures::paging::{FrameAllocator, PageSize, PageTableFlags, PhysFrame, Size4KiB},
@@ -37,11 +36,13 @@ use hadron_base::{
     },
 };
 
+#[cfg(feature = "printk_serial")]
 static SERIAL: RacyCell<Option<SerialWriter>> = RacyCell::new(None);
 static FRAMEBUFFER: RacyCell<Option<FramebufferWriter>> = RacyCell::new(None);
 
 fn write_fmt(args: Arguments) {
     use core::fmt::Write;
+    #[cfg(feature = "printk_serial")]
     if let Some(serial) = SERIAL.get_mut().as_mut() {
         serial.write_fmt(args).unwrap();
     }
@@ -94,6 +95,7 @@ fn init_core() {
     x86_64::instructions::interrupts::disable();
 
     // We initialize the seiral port so it is available for printing
+    #[cfg(feature = "printk_serial")]
     SERIAL.get_mut().replace({
         let mut serial = SerialWriter::new(0x3F8);
         serial.init();
@@ -320,8 +322,13 @@ fn allocate_pages() -> ! {
 }
 
 fn limine_stage_2() -> ! {
+    let span = tracing::span!(tracing::Level::TRACE, "limine_stage_2");
+    let _enter = span.enter();
+
     use crate::boot::arch::memory_map::MainMemoryMap;
     init_heap();
+    // TODO: We need a config flag for this
+    // hadron_base::util::tracing::init_tracing();
     init_logging();
 
     log::debug!("BOOT: calling constructors...");
@@ -366,8 +373,11 @@ fn init_logging() {
     log::set_logger(&LOGGER).unwrap();
     log::set_max_level(log::LevelFilter::Trace);
 
-    let serial = SERIAL.get_mut().take().unwrap();
-    WRITER.add_output(Box::new(serial));
+    #[cfg(feature = "printk_serial")]
+    {
+        let serial = SERIAL.get_mut().take().unwrap();
+        WRITER.add_output(Box::new(serial));
+    }
     let fb = FRAMEBUFFER.get_mut().take().unwrap();
     WRITER.add_output(Box::new(fb));
 }

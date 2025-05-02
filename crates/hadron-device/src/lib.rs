@@ -16,7 +16,6 @@ extern crate alloc;
 use core::{alloc::Allocator, ptr::NonNull};
 
 use alloc::vec::Vec;
-use hadron_base::base::mem::sync::UninitMutex;
 use spin::RwLock;
 
 pub mod gpu;
@@ -129,12 +128,12 @@ unsafe impl Send for Device {}
 unsafe impl Sync for Device {}
 
 #[derive(Debug)]
-struct DeviceMapper {
+pub struct DeviceMapper {
     mapped_regions: Vec<mem::MMRegion>,
 }
 
 #[derive(Debug)]
-struct DeviceAllocator {}
+pub struct DeviceAllocator {}
 
 unsafe impl Allocator for DeviceAllocator {
     fn allocate(&self, layout: core::alloc::Layout) -> Result<core::ptr::NonNull<[u8]>, core::alloc::AllocError> {

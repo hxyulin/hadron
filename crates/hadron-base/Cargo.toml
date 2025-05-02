@@ -3,6 +3,10 @@ name = "hadron-base"
 version.workspace = true
 edition.workspace = true
 
+[lib]
+test = false
+bench = false
+
 [dependencies]
 volatile.workspace = true
 lazy_static.workspace = true
@@ -11,6 +15,7 @@ bitflags.workspace = true
 spin.workspace = true
 no-alloc.workspace = true
 x86_64.workspace = true
+tracing.workspace = true
 
 noto-sans-mono-bitmap = { version = "0.3.1", default-features = false, features = [
     "regular",
@@ -24,10 +29,8 @@ acpi = "5.2.0"
 chrono = { version = "0.4.40", default-features = false, features = ["alloc"] }
 bit_field = "0.10.2"
 conquer-once = { version = "0.4.0", default-features = false }
-raw-cpuid = "11.5.0"
 gimli = { version = "0.27.2", default-features = false, features = ["read"] }
 crossbeam = { version = "0.8.4", default-features = false, features = ["alloc"] }
-futures = { version = "0.3.31", default-features = false, features = ["alloc"] }
 
 [dev-dependencies]
 static_assertions.workspace = true
