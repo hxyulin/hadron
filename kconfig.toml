@@ -1,0 +1,5 @@
+# The directory to look for kernel configuration files.
+include = [
+    "kernel",
+    "drivers",
+]

@@ -1,0 +1,2 @@
+# This is the root configuration file for the kernel.
+include = ["drivers", "kernel", "boot"]

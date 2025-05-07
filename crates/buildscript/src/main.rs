@@ -6,6 +6,7 @@ pub enum Task {
     Clean,
     Run,
     Menuconfig,
+    Defconfig,
     Test,
 }
 
@@ -18,6 +19,7 @@ impl FromStr for Task {
             "clean" => Ok(Task::Clean),
             "run" => Ok(Task::Run),
             "menuconfig" => Ok(Task::Menuconfig),
+            "defconfig" => Ok(Task::Defconfig),
             "test" => Ok(Task::Test),
             _ => Err(format!("Invalid task: {}", s)),
         }
@@ -31,10 +33,13 @@ impl Display for Task {
             Task::Clean => write!(f, "clean"),
             Task::Run => write!(f, "run"),
             Task::Menuconfig => write!(f, "menuconfig"),
+            Task::Defconfig => write!(f, "defconfig"),
             Task::Test => write!(f, "test"),
         }
     }
 }
+
+const CONFIG_PATH: &str = "target/generated/kconfgen.toml";
 
 fn main() {
     let mut args = std::env::args().skip(1);
@@ -45,12 +50,18 @@ fn main() {
         Task::Clean => clean(),
         Task::Run => build(true),
         Task::Menuconfig => menuconfig(),
+        Task::Defconfig => defconfig(),
         Task::Test => test(),
     }
 }
 
 fn build(run: bool) {
-    let config = menuconfig::config::Config::from_file("target/generated/config.toml");
+    if !std::fs::exists(CONFIG_PATH).unwrap_or(false) {
+        eprintln!("Failed to read config file at {}", CONFIG_PATH);
+        println!("Generate a config using make defconfig");
+        return;
+    }
+    let config = menuconfig::deserialize(CONFIG_PATH).unwrap();
     let mut command = Command::new("cargo");
     if run {
         println!("Running Hadron kernel");
@@ -60,11 +71,11 @@ fn build(run: bool) {
         command.arg("build");
     }
     command.args(&["--package", "hadron-kernel"]);
-    if !config.debug {
+    if !config.get::<bool>("kernel.debug").unwrap() {
         command.args(&["--release"]);
     }
-    let mut features = Vec::new();
-    if config.serial {
+    let mut features: Vec<&'static str> = Vec::new();
+    if config.get::<bool>("kernel.serial").unwrap() {
         features.push("printk_serial");
     }
 
@@ -93,8 +104,15 @@ fn menuconfig() {
     command.arg("run");
     command.arg("--quiet");
     command.args(&["--package", "menuconfig"]);
-    command.args(&["--", env!("CONFIG_FILE")]);
+    command.args(&["--", CONFIG_PATH]);
     command.status().unwrap();
+}
+
+fn defconfig() {
+    println!("Generating default config file ({})", CONFIG_PATH);
+    let config_dir = std::path::Path::new(CONFIG_PATH).parent().unwrap();
+    std::fs::create_dir_all(config_dir).unwrap();
+    menuconfig::generate_defconfig(CONFIG_PATH).unwrap();
 }
 
 fn test() {

@@ -1,9 +1,8 @@
-use std::{collections::HashMap, str::FromStr};
+use std::collections::HashMap;
 
 use crossterm::event::{Event, KeyCode, KeyEvent};
+use kconfig::{Config, ConfigOption};
 use ratatui::{prelude::*, widgets::*};
-
-use crate::config::{Config, Target};
 
 #[derive(Debug, Clone)]
 enum ConfigValue {
@@ -236,13 +235,13 @@ impl ConfigItem for ConfigSection {
 
 #[derive(Default)]
 struct ConfigMenu {
-    item_ids: HashMap<&'static str, usize>,
+    item_ids: HashMap<String, usize>,
     items: Vec<Box<dyn ConfigItem>>,
     selected: usize,
 }
 
 impl ConfigMenu {
-    fn add_item(&mut self, name: &'static str, item: Box<dyn ConfigItem>) {
+    fn add_item(&mut self, name: String, item: Box<dyn ConfigItem>) {
         self.item_ids.insert(name, self.items.len());
         self.items.push(item);
     }
@@ -303,54 +302,29 @@ impl ConfigMenu {
     }
 }
 
-pub fn run(config: Config) -> Result<Config, Box<dyn std::error::Error>> {
+impl Into<kconfig::ConfigValue> for ConfigValue {
+    fn into(self) -> kconfig::ConfigValue {
+        match self {
+            ConfigValue::Bool(b) => kconfig::ConfigValue::Bool(b),
+            _ => unimplemented!(),
+        }
+    }
+}
+
+pub fn run(mut config: Config) -> Result<Config, Box<dyn std::error::Error>> {
     let mut terminal = ratatui::init();
 
     let mut menu = ConfigMenu::default();
 
-    let mut boot_section = ConfigSection {
-        name: "Boot Options".to_string(),
-        items: Vec::new(),
-        selected: None,
-    };
-    let targets = vec![Target::X86_64, Target::AArch64];
-    let selected_target = targets.iter().position(|t| t == &config.target).unwrap_or(0);
-    boot_section.add_item(Box::new(ConfigChoice::new(
-        "Target".to_string(),
-        targets,
-        selected_target,
-    )));
-
-    menu.add_item("boot", Box::new(boot_section));
-
-    menu.add_item(
-        "debug",
-        Box::new(ConfigToggle {
-            name: "Enable debug".to_string(),
-            value: config.debug,
-        }),
-    );
-    menu.add_item(
-        "serial",
-        Box::new(ConfigToggle {
-            name: "Enable serial".to_string(),
-            value: config.serial,
-        }),
-    );
-    menu.add_item(
-        "backtrace",
-        Box::new(ConfigToggle {
-            name: "Enable backtrace".to_string(),
-            value: config.backtrace,
-        }),
-    );
-    menu.add_item(
-        "smp",
-        Box::new(ConfigToggle {
-            name: "Enable SMP".to_string(),
-            value: config.smp,
-        }),
-    );
+    for (name, item) in &config.options {
+        menu.add_item(
+            name.clone(),
+            Box::new(ConfigToggle {
+                name: name.clone(),
+                value: item.value.as_bool(),
+            }),
+        );
+    }
 
     loop {
         terminal.draw(|f| {
@@ -396,13 +370,10 @@ pub fn run(config: Config) -> Result<Config, Box<dyn std::error::Error>> {
     }
     ratatui::restore();
 
-    let boot_options = menu.items[0].get_value().as_list();
+    for (name, option) in &mut config.options {
+        let idx = *menu.item_ids.get(name.as_str()).unwrap();
+        option.value = menu.items[idx].get_value().into()
+    }
 
-    Ok(Config {
-        target: Target::from_str(&boot_options[0].as_string()).unwrap(),
-        debug: menu.get_item("debug").unwrap().get_value().as_bool(),
-        serial: menu.get_item("serial").unwrap().get_value().as_bool(),
-        backtrace: menu.get_item("backtrace").unwrap().get_value().as_bool(),
-        smp: menu.get_item("smp").unwrap().get_value().as_bool(),
-    })
+    Ok(config)
 }
