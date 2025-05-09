@@ -1,4 +1,6 @@
 # Kernel configuration
+prefix = ""
+include = ["base", "device", "kernel"]
 
 [option.debug]
 description = "Enable debug"

@@ -54,7 +54,7 @@ impl ConfigNode {
 
     fn flatten_recursive(&self, prefix: &str, config: &mut Config) {
         // So if the path is empty, we just use the prefix.
-        let prefix = if self.path.is_empty() {
+        let prefix = if prefix.is_empty() {
             prefix.to_string()
         } else {
             format!("{}{}.", prefix, self.path)

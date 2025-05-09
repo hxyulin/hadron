@@ -3,8 +3,6 @@ resolver = "2"
 members = [
     "crates/buildscript",
     "crates/hadron-driver-macros",
-    "crates/hadron-base",
-    "crates/hadron-device",
     "crates/hadron-driver-api",
     "crates/hadron-macros",
     "crates/hadron-test",
@@ -12,8 +10,11 @@ members = [
     "crates/menuconfig",
     "crates/no-alloc",
     "crates/volatile",
+    "crates/kconfig",
     "drivers",
-    "kernel", "crates/kconfig",
+    "kern/base",
+    "kern/device",
+    "kern/kernel",
 ]
 default-members = ["crates/buildscript"]
 exclude = ["util"]
@@ -50,8 +51,8 @@ run-command = [
 ]
 
 [workspace.dependencies]
-hadron-base = { path = "crates/hadron-base", default-features = false }
-hadron-device = { path = "crates/hadron-device", default-features = false }
+hadron-base = { path = "kern/base", default-features = false }
+hadron-device = { path = "kern/device", default-features = false }
 hadron-drivers = { path = "drivers", default-features = false }
 hadron-macros = { path = "crates/hadron-macros", default-features = false }
 hadron-driver-api = { path = "crates/hadron-driver-api", default-features = false }

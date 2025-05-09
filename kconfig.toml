@@ -1,5 +1,5 @@
 # The directory to look for kernel configuration files.
 include = [
-    "kernel",
+    "kern",
     "drivers",
 ]

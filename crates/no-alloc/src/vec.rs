@@ -1,5 +1,6 @@
 use core::mem::MaybeUninit;
 
+/// A fixed-size array, which has vector-like operations.
 #[derive(Debug, Clone)]
 pub struct ArrayVec<T: Copy, const N: usize> {
     data: [MaybeUninit<T>; N],
