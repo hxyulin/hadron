@@ -71,11 +71,11 @@ fn build(run: bool) {
         command.arg("build");
     }
     command.args(&["--package", "hadron-kernel"]);
-    if !config.get::<bool>("kernel.debug").unwrap() {
+    if !config.get::<bool>("debug").unwrap() {
         command.args(&["--release"]);
     }
     let mut features: Vec<&'static str> = Vec::new();
-    if config.get::<bool>("kernel.serial").unwrap() {
+    if config.get::<bool>("serial").unwrap() {
         features.push("printk_serial");
     }
 
