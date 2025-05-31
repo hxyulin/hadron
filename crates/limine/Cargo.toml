@@ -1,0 +1,12 @@
+[package]
+name = "limine"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+
+[dependencies]
+
+[features]
+default = []
+internal-api = []

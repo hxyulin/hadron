@@ -1,0 +1,13 @@
+[package]
+name = "kernel-base"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+log.workspace = true
+no-alloc.workspace = true
+
+spin = "0.10.0"

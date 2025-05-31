@@ -1,0 +1,37 @@
+# Root Workspace Configuration
+[workspace]
+resolver = "3"
+members = [
+    "crates/buildscript",
+    "crates/limine",
+    "crates/no-alloc",
+    "kern/base",
+    "kern/boot",
+    "kern/kernel",
+]
+default-members = []
+
+# Package defaults
+[workspace.package]
+authors = ["hxyulin"]
+edition = "2024"
+license = "GPLv3"
+version = "0.0.1"
+rust-version = "1.86"
+
+# Workspace Metadata
+[workspace.metadata.image-runner]
+config-file = "limine.conf"
+limine-branch = "v8.x-binary"
+run-command = ["qemu-system-x86_64", "-cdrom", "{}", "-serial", "stdio"]
+
+# Shared Dependencies
+[workspace.dependencies]
+kernel-base = { version = "0.0.1", path = "kern/base" }
+kernel-boot = { version = "0.0.1", path = "kern/boot" }
+hadron-kernel = { version = "0.0.1", path = "kern/kernel" }
+
+limine = { version = "0.0.1", path = "crates/limine", default-features = false }
+no-alloc = { version = "0.0.1", path = "crates/no-alloc", default-features = false }
+
+log = "0.4.27"

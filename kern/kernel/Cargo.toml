@@ -1,0 +1,17 @@
+[package]
+name = "hadron-kernel"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "hadron-kernel"
+path = "src/main.rs"
+test = false
+bench = false
+
+[dependencies]
+kernel-base.workspace = true
+kernel-boot.workspace = true

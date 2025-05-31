@@ -1,0 +1,13 @@
+[package]
+name = "no-alloc"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+rust-version.workspace = true
+
+[features]
+default = ["std"]
+std = []
+
+[dependencies]

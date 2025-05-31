@@ -1,0 +1,13 @@
+[package]
+name = "kernel-boot"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+limine.workspace = true
+kernel-base.workspace = true
+
+uart_16550 = { version = "0.3.2", features = ["nightly"] }
