@@ -45,6 +45,7 @@ dependencies = [
  "log",
  "no-alloc",
  "spin",
+ "uart_16550",
 ]
 
 [[package]]
@@ -53,7 +54,7 @@ version = "0.0.1"
 dependencies = [
  "kernel-base",
  "limine",
- "uart_16550",
+ "log",
 ]
 
 [[package]]

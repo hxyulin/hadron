@@ -11,3 +11,4 @@ log.workspace = true
 no-alloc.workspace = true
 
 spin = "0.10.0"
+uart_16550 = { version = "0.3.2", features = ["nightly"] }
