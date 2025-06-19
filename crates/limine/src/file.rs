@@ -1,7 +1,6 @@
 //! Types for representing files.
 use core::{
-    ffi::{CStr, c_char},
-    ptr::NonNull,
+    ffi::{c_char, CStr}, num::NonZeroU32, ptr::NonNull
 };
 
 /// A file that is passed to the kernel.
@@ -56,6 +55,7 @@ impl File {
     /// Returns the media type of the file.
     /// See [`MediaType`] for more information.
     pub fn media_type(&self) -> MediaType {
+        assert!(self.media_type <= 2, "corrupt media type!");
         // SAFETY: The media type is a valid enum variant (guaranteed by the protocol).
         unsafe { core::mem::transmute(self.media_type) }
     }
@@ -68,6 +68,13 @@ impl File {
             None
         }
     }
+
+    /// Returns the partition index of the partition the file is on
+    pub fn partition_index(&self) -> Option<NonZeroU32> {
+        NonZeroU32::new(self.partition_index)
+    }
+
+    // TODO: MBR, GPT, Part info
 }
 
 impl core::fmt::Debug for File {
@@ -80,7 +87,7 @@ impl core::fmt::Debug for File {
             .field("cmdline", &self.cmdline())
             .field("media_type", &self.media_type())
             .field("tftp_info", &self.tftp_info())
-            .field("partition_index", &self.partition_index)
+            .field("partition_index", &self.partition_index())
             .field("mbr_disk_id", &self.mbr_disk_id)
             .field("gpt_disk_uuid", &self.gpt_disk_uuid)
             .field("gpt_partition_uuid", &self.gpt_partition_uuid)

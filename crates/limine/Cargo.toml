@@ -10,3 +10,4 @@ publish = false
 [features]
 default = []
 internal-api = []
+risc-v = []
