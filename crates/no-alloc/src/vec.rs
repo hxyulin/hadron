@@ -273,8 +273,7 @@ where
     /// vec.push(1);
     /// vec.push(2);
     /// vec.push(3);
-    /// vec.push(3);
-    ///vec.push(4);
+    /// vec.push(4);
     ///
     /// vec.sort_unstable();
     ///

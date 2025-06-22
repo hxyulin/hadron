@@ -11,7 +11,7 @@ use hadron_base::{
 };
 use hadron_device::pci::PCIeConfigSpace;
 
-pub mod boot;
+pub use hadron_boot as boot;
 
 extern crate alloc;
 

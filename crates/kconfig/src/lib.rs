@@ -145,7 +145,6 @@ impl Into<bool> for ConfigValue {
     fn into(self) -> bool {
         match self {
             ConfigValue::Bool(b) => b,
-            _ => panic!("Invalid value for bool"),
         }
     }
 }
@@ -211,7 +210,6 @@ impl ConfigValue {
     pub fn as_bool(&self) -> bool {
         match self {
             ConfigValue::Bool(b) => *b,
-            _ => panic!("Not a bool"),
         }
     }
 }

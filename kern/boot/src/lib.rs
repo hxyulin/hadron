@@ -1,4 +1,8 @@
-#![allow(unexpected_cfgs)]
+#![no_std]
+#![no_main]
+#![feature(allocator_api, vec_push_within_capacity)]
+
+extern crate alloc;
 
 use core::{panic::PanicInfo, sync::atomic::AtomicBool};
 

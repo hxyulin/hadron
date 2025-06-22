@@ -131,7 +131,7 @@ impl BootstrapMemoryMap {
 
 pub trait MainMemoryMap {
     fn from_bootstrap(memory_map: &mut BootstrapMemoryMap, page_table: &mut KernelPageTable) -> Self;
-    fn push_entry(&mut self, entry: crate::boot::arch::memory_map::MemoryMapEntry);
+    fn push_entry(&mut self, entry: crate::arch::memory_map::MemoryMapEntry);
 }
 
 impl MainMemoryMap for MemoryMap {
@@ -189,7 +189,7 @@ impl MainMemoryMap for MemoryMap {
         }
     }
 
-    fn push_entry(&mut self, entry: crate::boot::arch::memory_map::MemoryMapEntry) {
+    fn push_entry(&mut self, entry: crate::arch::memory_map::MemoryMapEntry) {
         self.entries.push(MemoryRegion::from_base_and_length(
             entry.base(),
             entry.length(),

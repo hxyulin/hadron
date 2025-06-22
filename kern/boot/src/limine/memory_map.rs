@@ -6,7 +6,7 @@ use x86_64::{
     structures::paging::{PageSize, Size4KiB},
 };
 
-use crate::boot::arch::memory_map::{BootstrapMemoryMap, MemoryMapEntry, MemoryRegionType};
+use crate::arch::memory_map::{BootstrapMemoryMap, MemoryMapEntry, MemoryRegionType};
 
 impl From<limine::memory_map::MemoryMapEntryType> for MemoryRegionType {
     fn from(entry_type: limine::memory_map::MemoryMapEntryType) -> Self {

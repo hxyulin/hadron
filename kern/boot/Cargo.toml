@@ -1,0 +1,16 @@
+[package]
+name = "hadron-boot"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+hadron-base.workspace = true
+
+spin.workspace = true
+log.workspace = true
+limine.workspace = true
+x86_64.workspace = true
+tracing.workspace = true
+
+
+linked_list_allocator = "0.10.5"

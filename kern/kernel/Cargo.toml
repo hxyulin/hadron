@@ -16,6 +16,7 @@ printk_serial = []
 
 [dependencies]
 hadron-base.workspace = true
+hadron-boot.workspace = true
 hadron-device.workspace = true
 hadron-drivers.workspace = true
 

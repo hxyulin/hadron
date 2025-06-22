@@ -22,6 +22,7 @@ pub struct PCIDev {
     pub caps: PCICapabilities,
 }
 
+#[repr(C)]
 #[derive(Debug)]
 pub struct PCIDriver {
     pub name: &'static str,
@@ -116,7 +117,8 @@ impl PCIDeviceTree {
             }),
         }
     }
-    pub fn iter(&self) -> PCIDeviceTreeIter {
+    pub fn iter(&self) -> PCIDeviceTreeIter<'_> {
+        debug_assert!(matches!(&self.root, PCIDeviceTreeNode::Bus(d) if d.bus_number != 255), "invalid root bus: uninitialized");
         PCIDeviceTreeIter::new(&self.root)
     }
 }

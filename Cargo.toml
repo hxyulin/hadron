@@ -15,6 +15,7 @@ members = [
     "kern/base",
     "kern/device",
     "kern/kernel",
+    "kern/boot",
 ]
 default-members = ["crates/buildscript"]
 exclude = ["util"]
@@ -52,6 +53,7 @@ run-command = [
 
 [workspace.dependencies]
 hadron-base = { path = "kern/base", default-features = false }
+hadron-boot = { path = "kern/boot", default-features = false }
 hadron-device = { path = "kern/device", default-features = false }
 hadron-drivers = { path = "drivers", default-features = false }
 hadron-macros = { path = "crates/hadron-macros", default-features = false }

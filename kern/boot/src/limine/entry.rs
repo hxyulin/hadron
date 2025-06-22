@@ -8,7 +8,8 @@ use x86_64::{
 };
 
 use super::requests;
-use crate::boot::{
+use crate::{
+    arch::memory_map::MainMemoryMap,
     arch::{
         memory_map::{MemoryMapEntry, MemoryRegionType},
         x86_64::{frame_allocator::BasicFrameAllocator, page_table::BootstrapPageTable},
@@ -36,13 +37,11 @@ use hadron_base::{
     },
 };
 
-#[cfg(feature = "printk_serial")]
 static SERIAL: RacyCell<Option<SerialWriter>> = RacyCell::new(None);
 static FRAMEBUFFER: RacyCell<Option<FramebufferWriter>> = RacyCell::new(None);
 
 fn write_fmt(args: Arguments) {
     use core::fmt::Write;
-    #[cfg(feature = "printk_serial")]
     if let Some(serial) = SERIAL.get_mut().as_mut() {
         serial.write_fmt(args).unwrap();
     }
@@ -95,7 +94,6 @@ fn init_core() {
     x86_64::instructions::interrupts::disable();
 
     // We initialize the seiral port so it is available for printing
-    #[cfg(feature = "printk_serial")]
     SERIAL.get_mut().replace({
         let mut serial = SerialWriter::new(0x3F8);
         serial.init();
@@ -325,14 +323,14 @@ fn limine_stage_2() -> ! {
     let span = tracing::span!(tracing::Level::TRACE, "limine_stage_2");
     let _enter = span.enter();
 
-    use crate::boot::arch::memory_map::MainMemoryMap;
+    use crate::arch::memory_map::MainMemoryMap;
     init_heap();
     // TODO: We need a config flag for this
     // hadron_base::util::tracing::init_tracing();
     init_logging();
 
     log::debug!("BOOT: calling constructors...");
-    crate::boot::ctor::init();
+    crate::ctor::init();
 
     let boot_info = unsafe { boot_info_mut() };
     log::debug!("BOOT: constructing page tables...");
@@ -373,18 +371,15 @@ fn init_logging() {
     log::set_logger(&LOGGER).unwrap();
     log::set_max_level(log::LevelFilter::Trace);
 
-    #[cfg(feature = "printk_serial")]
-    {
-        let serial = SERIAL.get_mut().take().unwrap();
-        WRITER.add_output(Box::new(serial));
-    }
+    let serial = SERIAL.get_mut().take().unwrap();
+    WRITER.add_output(Box::new(serial));
     let fb = FRAMEBUFFER.get_mut().take().unwrap();
     WRITER.add_output(Box::new(fb));
 }
 
 fn jump_to_kernel_main(params: KernelParams) -> ! {
     // It is not considered not 'boot' anymore, since we are jumping to the kernel afterwards
-    crate::boot::IS_BOOT.store(false, core::sync::atomic::Ordering::Relaxed);
+    crate::IS_BOOT.store(false, core::sync::atomic::Ordering::Relaxed);
     unsafe extern "Rust" {
         fn kernel_main(params: KernelParams) -> !;
     }

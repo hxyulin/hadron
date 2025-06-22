@@ -1,6 +1,7 @@
-use alloc::{boxed::Box, string::String, vec::Vec};
+use alloc::{boxed::Box, vec::Vec};
 use core::fmt::Write;
 use log::Log;
+use no_alloc::ringbuf::RingBuf;
 use spin::{Mutex, MutexGuard};
 
 use super::timer::time_since_boot;
@@ -20,7 +21,7 @@ pub trait Writer: Write + Send + Sync {
 
 /// The main writer for the kernel, which can be used for logging.
 pub struct BufferedWriter {
-    buffer: Mutex<String>,
+    buffer: Mutex<RingBuf<u8, 1024>>,
     outputs: Mutex<Vec<Box<dyn Writer>>>,
 }
 
@@ -29,14 +30,9 @@ impl BufferedWriter {
 
     pub const fn empty() -> Self {
         Self {
-            buffer: Mutex::new(String::new()),
+            buffer: Mutex::new(RingBuf::new()),
             outputs: Mutex::new(Vec::new()),
         }
-    }
-
-    /// You must call this before using the writer, otherwise it will panic, as the buffer is 0 sized.
-    pub fn init(&self) {
-        self.buffer.lock().reserve_exact(Self::BUFFER_SIZE);
     }
 
     pub fn outputs(&self) -> MutexGuard<'_, Vec<Box<dyn Writer>>> {
@@ -47,12 +43,13 @@ impl BufferedWriter {
         self.outputs.lock().push(output);
     }
 
-    fn buf_flush(&self, buf: &mut String) {
+    fn buf_flush(&self, buf: &mut RingBuf<u8, 1024>) {
         let mut outputs = self.outputs.lock();
-        for device in outputs.iter_mut() {
-            device.write_str(buf.as_str()).unwrap();
+        while let Some(c) = buf.pop() {
+            for device in outputs.iter_mut() {
+                device.write_char(c as char).unwrap();
+            }
         }
-        buf.clear();
     }
 
     pub fn flush(&self) {
@@ -64,10 +61,16 @@ impl BufferedWriter {
     pub fn write_str(&self, s: &str) -> core::fmt::Result {
         let mut buffer = self.buffer.lock();
         if buffer.len() + s.len() < Self::BUFFER_SIZE {
-            buffer.push_str(s);
+            for c in s.as_bytes() {
+                // SAFETY: We checked earlier it doesn't overflow
+                unsafe { buffer.push_unchecked(*c) };
+            }
         } else {
             self.buf_flush(&mut buffer);
-            buffer.push_str(s);
+            for c in s.as_bytes() {
+                // SAFETY: We checked earlier it doesn't overflow
+                unsafe { buffer.push_unchecked(*c) };
+            }
         }
         Ok(())
     }
@@ -96,7 +99,7 @@ impl Log for KernelLogger {
 
     fn log(&self, record: &log::Record) {
         let _ = WRITER.write_fmt(format_args!(
-            "[{:.5}] {}: {}\n",
+            "[{:.5}] {} {}\n",
             time_since_boot().as_secs_f64(),
             record.level(),
             record.args()

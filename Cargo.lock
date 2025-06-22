@@ -346,6 +346,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "hadron-boot"
+version = "0.0.1"
+dependencies = [
+ "hadron-base",
+ "limine",
+ "linked_list_allocator",
+ "log",
+ "spin 0.10.0",
+ "tracing",
+ "x86_64",
+]
+
+[[package]]
 name = "hadron-device"
 version = "0.0.1"
 dependencies = [
@@ -382,6 +395,7 @@ name = "hadron-kernel"
 version = "0.0.1"
 dependencies = [
  "hadron-base",
+ "hadron-boot",
  "hadron-device",
  "hadron-drivers",
  "hadron-test",

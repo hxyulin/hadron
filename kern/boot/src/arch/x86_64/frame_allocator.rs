@@ -5,7 +5,7 @@ use x86_64::{
 
 use core::option::Option;
 
-use crate::boot::arch::memory_map::{BootstrapMemoryMap, MemoryMapEntry, MemoryRegionType};
+use crate::arch::memory_map::{BootstrapMemoryMap, MemoryMapEntry, MemoryRegionType};
 
 #[derive(Debug)]
 pub struct BasicFrameAllocator<'ctx> {
