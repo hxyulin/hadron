@@ -23,6 +23,7 @@ exclude = ["util"]
 [workspace.package]
 version = "0.0.1"
 edition = "2024"
+rust-version = "1.90.0"
 
 # We have a generic image runner that we use for all the packages
 [workspace.metadata.image-runner]
@@ -45,11 +46,12 @@ run-command = [
     "-cdrom",
     "{}",
     "-machine",
-    "q35",
+    "$machine",
     "-serial",
     "stdio",
     "-no-reboot",
 ]
+vars = { machine = "q35" }
 
 [workspace.dependencies]
 hadron-base = { path = "kern/base", default-features = false }

@@ -2,6 +2,7 @@
 name = "limine"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 publish = false
 
 [dependencies]
@@ -9,3 +10,4 @@ publish = false
 [features]
 default = []
 internal-api = []
+risc-v = []

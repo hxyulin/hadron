@@ -292,7 +292,8 @@ impl DeviceClass {
 
 impl super::PCIDeviceTree {
     pub fn from_pcie(spaces: Vec<PCIeConfigSpace>) -> Self {
-        let root_bus = parse_bus(spaces.as_slice(), &PCIeBus::new(0));
+        let root_bus = parse_bus(spaces.as_slice(), &PCIeBus::new(0))
+            .expect("PCIe bus not found, perhaps device only supports PCI?");
         Self {
             root: super::PCIDeviceTreeNode::Bus(root_bus),
         }
@@ -313,8 +314,8 @@ fn get_bus_base(spaces: &[PCIeConfigSpace], bus: &PCIeBus) -> Option<VirtAddr> {
 }
 
 // TODO: Make this return a Option<PCIBusDevice>
-fn parse_bus(spaces: &[PCIeConfigSpace], bus: &PCIeBus) -> super::PCIBusDevice {
-    let base = get_bus_base(spaces, bus).expect("PCI: bus not found");
+fn parse_bus(spaces: &[PCIeConfigSpace], bus: &PCIeBus) -> Option<super::PCIBusDevice> {
+    let base = get_bus_base(spaces, bus)?;
     let mut devices = Vec::new();
     for i in 0u64..32u64 {
         let mut device = super::PCIDevice::empty(i as u8);
@@ -364,8 +365,8 @@ fn parse_bus(spaces: &[PCIeConfigSpace], bus: &PCIeBus) -> super::PCIBusDevice {
             devices.push(super::PCIDeviceTreeNode::Device(device));
         }
     }
-    super::PCIBusDevice {
+    Some(super::PCIBusDevice {
         bus_number: bus.bus,
         devices,
-    }
+    })
 }

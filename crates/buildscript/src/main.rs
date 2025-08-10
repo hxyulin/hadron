@@ -46,16 +46,16 @@ fn main() {
     let task = Task::from_str(&args.next().unwrap_or("build".to_string())).unwrap();
 
     match task {
-        Task::Build => build(false),
+        Task::Build => build(false, vec![]),
         Task::Clean => clean(),
-        Task::Run => build(true),
+        Task::Run => build(true, args.collect()),
         Task::Menuconfig => menuconfig(),
         Task::Defconfig => defconfig(),
         Task::Test => test(),
     }
 }
 
-fn build(run: bool) {
+fn build(run: bool, args: Vec<String>) {
     if !std::fs::exists(CONFIG_PATH).unwrap_or(false) {
         eprintln!("Failed to read config file at {}", CONFIG_PATH);
         println!("Generate a config using make defconfig");
@@ -88,6 +88,8 @@ fn build(run: bool) {
         "-Zbuild-std=core,alloc,compiler_builtins",
         "-Zbuild-std-features=compiler-builtins-mem",
     ]);
+    command.arg("--");
+    command.args(args);
     command.status().unwrap();
 }
 

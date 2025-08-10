@@ -2,7 +2,7 @@
 
 use core::{
     cell::UnsafeCell,
-    ffi::{CStr, c_char},
+    ffi::{CStr, c_char, c_void},
     ptr::NonNull,
 };
 
@@ -81,6 +81,7 @@ pub struct FirmwareTypeResponse {
 impl FirmwareTypeResponse {
     /// Returns the firmware type of the bootloader.
     pub fn firmware_type(&self) -> FirmwareType {
+        assert!(self.firmware_type <= 3, "invalid firmware type");
         // SAFETY: The firmware type is a valid enum variant (ganranteed by the protocol).
         unsafe { core::mem::transmute(self.firmware_type) }
     }
@@ -114,7 +115,9 @@ impl FramebufferResponse {
     /// Returns the framebuffer pointers.
     fn framebuffer_ptrs(&self) -> &[NonNull<RawFramebuffer>] {
         // SAFETY: The framebuffers pointer is valid because it is a pointer to an array of pointers.
-        unsafe { core::slice::from_raw_parts(self.framebuffers.as_ptr(), self.framebuffer_count as usize) }
+        unsafe {
+            core::slice::from_raw_parts(self.framebuffers.as_ptr(), self.framebuffer_count as usize)
+        }
     }
 
     /// Returns the number of framebuffers.
@@ -128,7 +131,7 @@ impl FramebufferResponse {
     }
 
     /// Returns an iterator over the framebuffers.
-    pub fn framebuffers(&self) -> FramebufferList {
+    pub fn framebuffers(&self) -> FramebufferList<'_> {
         FramebufferList::new(self.revision, self.framebuffer_ptrs())
     }
 }
@@ -150,7 +153,11 @@ pub struct MemoryMapResponse {
 
 impl MemoryMapResponse {
     #[cfg(feature = "internal-api")]
-    pub fn internal_new(revision: u64, memory_map_entries: u64, memory_map: NonNull<NonNull<MemoryMapEntry>>) -> Self {
+    pub fn internal_new(
+        revision: u64,
+        memory_map_entries: u64,
+        memory_map: NonNull<NonNull<MemoryMapEntry>>,
+    ) -> Self {
         Self {
             revision,
             memory_map_entries,
@@ -164,8 +171,10 @@ impl MemoryMapResponse {
     }
 
     /// Returns an iterator over the memory map entries.
-    pub fn entries(&self) -> MemoryMapIter {
-        MemoryMapIter::new(unsafe { core::slice::from_raw_parts(self.memory_map.as_ptr(), self.count()) })
+    pub fn entries(&self) -> MemoryMapIter<'_> {
+        MemoryMapIter::new(unsafe {
+            core::slice::from_raw_parts(self.memory_map.as_ptr(), self.count())
+        })
     }
 }
 
@@ -205,7 +214,7 @@ impl ModuleResponse {
     }
 
     /// Returns an iterator over the modules.
-    pub fn modules(&self) -> FileIter {
+    pub fn modules(&self) -> FileIter<'_> {
         // SAFETY: The modules pointer is valid because it is a pointer to an array of pointers.
         FileIter::new(unsafe { core::slice::from_raw_parts(self.modules.as_ptr(), self.count()) })
     }
@@ -236,4 +245,81 @@ pub struct ExecutableAddressResponse {
     pub physical_address: u64,
     /// The virtual base address of the executable.
     pub virtual_address: u64,
+}
+
+#[repr(C)]
+pub struct SmBiosResponse {
+    pub revision: u64,
+    pub entry_32: u64,
+    pub entry_64: u64,
+}
+
+#[repr(C)]
+pub struct EfiSystemTableResponse {
+    pub revision: u64,
+    /// Adress of the system table,
+    /// if base revision >= 3 it is physical
+    pub address: u64,
+}
+
+#[repr(C)]
+pub struct EfiMemoryMapResponse {
+    pub revision: u64,
+    pub memmap: *const c_void,
+    pub memmap_size: u64,
+    pub desc_size: u64,
+    pub desc_version: u64,
+}
+
+#[repr(C)]
+pub struct DateAtBootResponse {
+    pub revision: u64,
+    pub timestamp: i64,
+}
+
+#[repr(C)]
+pub struct DtbResponse {
+    pub revision: u64,
+    pub dtb_ptr: *const c_void,
+}
+
+#[repr(transparent)]
+pub struct MultiprocessorResponse {
+    #[cfg(target_arch = "x86_64")]
+    pub x86_64: MultiprocessorResponseX86_64,
+}
+
+#[repr(transparent)]
+pub struct MpInfo {
+    #[cfg(target_arch = "x86_64")]
+    pub x86_64: MpInfoX86_64,
+}
+
+#[repr(C)]
+pub struct MultiprocessorResponseX86_64 {
+    pub revision: u64,
+    pub flags: u32,
+    pub bsp_lapic_id: u32,
+    pub cpu_count: u64,
+    pub cpus: NonNull<NonNull<MpInfo>>,
+}
+
+#[repr(C)]
+pub struct MpInfoX86_64 {
+    pub processor_id: u32,
+    pub lapic_id: u32,
+    reserved: u64,
+    pub goto_address: extern "C" fn(*const MpInfo),
+    pub extra_argument: u64,
+}
+
+// TODO: Other arch
+
+#[cfg(feature = "risc-v")]
+pub mod risc_v {
+    #[repr(C)]
+    pub struct BspHardIdResponse {
+        pub revision: u64,
+        pub bsp_hardid: u64,
+    }
 }

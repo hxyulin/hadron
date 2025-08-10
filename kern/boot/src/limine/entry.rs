@@ -9,7 +9,6 @@ use x86_64::{
 
 use super::requests;
 use crate::{
-    arch::memory_map::MainMemoryMap,
     arch::{
         memory_map::{MemoryMapEntry, MemoryRegionType},
         x86_64::{frame_allocator::BasicFrameAllocator, page_table::BootstrapPageTable},
@@ -72,9 +71,12 @@ pub fn limine_print_panic(info: &core::panic::PanicInfo) {
         ));
     }
 
+    // We check if the heap is available
     if ALLOCATOR.generic_size() != 0 {
+        // Backtracing requires the heap
         let mut unwinder = hadron_base::util::backtrace::create_unwinder(&machine_state);
         while let Ok(Some(frame)) = unwinder.next() {
+            // TODO: Maybe normalize the pc (subtract the kernel load addr)
             _ = writer.write_fmt(format_args!("    at {:#X}\n", frame.pc));
         }
     } else {
@@ -91,15 +93,19 @@ pub fn limine_print_panic(info: &core::panic::PanicInfo) {
 /// - Initializing the GDT
 /// - Initializing the IDT
 fn init_core() {
+    // Disable interrupts, because we don't want any setup to be interrupted
     x86_64::instructions::interrupts::disable();
 
     // We initialize the seiral port so it is available for printing
     SERIAL.get_mut().replace({
+        // We initialize a UART16550 Serial on COMM1
+        // TODO: Check if it is actually a serial connected on COMM1
         let mut serial = SerialWriter::new(0x3F8);
         serial.init();
         serial
     });
 
+    // Check if limine is new enough to support our kernel
     if !requests::BASE_REVISION.is_supported() {
         panic!(
             "Limine Base Revision {} is not supported\n",
@@ -108,7 +114,7 @@ fn init_core() {
     }
 
     // We want the framebuffer as early as possible
-    let framebuffers = requests::FRAMEBUFFER.get_response().unwrap().framebuffers();
+    let framebuffers = requests::FRAMEBUFFER.response().unwrap().framebuffers();
     write_fmt(format_args!("BOOT: found {} framebuffers\n", framebuffers.len()));
 
     let fb = framebuffers.first().unwrap();
@@ -125,7 +131,7 @@ fn init_core() {
         .get_mut()
         .replace(FramebufferWriter::new(Framebuffer::new(fb_info, fb)));
 
-    let response = requests::BOOTLOADER_INFO.get_response().unwrap();
+    let response = requests::BOOTLOADER_INFO.response().unwrap();
     write_fmt(format_args!(
         "BOOT: booted from {} {}\n",
         response.name(),
@@ -147,10 +153,10 @@ fn init_core() {
 /// - Reading the memory map
 fn populate_boot_info() {
     let boot_info = unsafe { boot_info_mut() };
-    let hhdm = requests::HHDM.get_response().unwrap();
+    let hhdm = requests::HHDM.response().unwrap();
     boot_info.hhdm_offset = hhdm.offset;
     write_fmt(format_args!("BOOT: hhdm_offset: {:#x}\n", boot_info.hhdm_offset));
-    let kernel_addr = requests::EXECUTABLE_ADDRESS.get_response().unwrap();
+    let kernel_addr = requests::EXECUTABLE_ADDRESS.response().unwrap();
     boot_info.kernel_start_phys = PhysAddr::new(kernel_addr.physical_address);
     boot_info.kernel_start_virt = VirtAddr::new(kernel_addr.virtual_address);
     write_fmt(format_args!(
@@ -164,12 +170,12 @@ fn populate_boot_info() {
     write_fmt(format_args!("BOOT: parsing memory map...\n"));
     boot_info
         .memory_map
-        .parse_from_limine(requests::MEMORY_MAP.get_response().unwrap(), boot_info.hhdm_offset);
+        .parse_from_limine(requests::MEMORY_MAP.response().unwrap(), boot_info.hhdm_offset);
     write_fmt(format_args!(
         "BOOT: total memory available: {:#?}\n",
         boot_info.memory_map.total_size()
     ));
-    let rsdp = requests::RSDP.get_response().unwrap();
+    let rsdp = requests::RSDP.response().unwrap();
     boot_info.rsdp_addr = PhysAddr::new(rsdp.address);
 }
 

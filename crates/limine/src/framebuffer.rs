@@ -2,9 +2,11 @@
 
 use core::ptr::NonNull;
 
+/// The memory layout of a framebuffer
 #[repr(u8)]
 #[derive(Debug, Clone, Copy)]
 pub enum MemoryModel {
+    /// The framebuffer is stored in RGB order
     Rgb = 0,
 }
 
@@ -179,7 +181,10 @@ pub struct FramebufferList<'a> {
 impl<'a> FramebufferList<'a> {
     /// Creates a new `FramebufferIter` from a slice of framebuffer pointers.
     pub(crate) fn new(revision: u64, framebuffers: &'a [NonNull<RawFramebuffer>]) -> Self {
-        Self { revision, framebuffers }
+        Self {
+            revision,
+            framebuffers,
+        }
     }
 
     pub fn len(&self) -> usize {
@@ -194,6 +199,18 @@ impl<'a> FramebufferList<'a> {
         self.framebuffers
             .first()
             .map(|framebuffer| Framebuffer::new(self.revision, unsafe { framebuffer.as_ref() }))
+    }
+}
+
+impl<'a> IntoIterator for FramebufferList<'a> {
+    type Item = Framebuffer<'a>;
+    type IntoIter = FramebufferIter<'a>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        FramebufferIter {
+            fb_list: self,
+            index: 0,
+        }
     }
 }
 

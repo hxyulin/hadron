@@ -1,6 +1,6 @@
 //! Types for representing the memory map.
 
-use core::ptr::NonNull;
+use core::{ops::Range, ptr::NonNull};
 
 /// A memory map entry.
 #[repr(C)]
@@ -13,6 +13,13 @@ pub struct MemoryMapEntry {
     /// The type of the memory region.
     /// See [`MemoryMapEntryType`] for more information.
     pub ty: MemoryMapEntryType,
+}
+
+impl MemoryMapEntry {
+    /// Returns a range representing the memory chunk
+    pub fn as_range(&self) -> Range<u64> {
+        self.base..self.base + self.length
+    }
 }
 
 /// The type of a memory map entry.

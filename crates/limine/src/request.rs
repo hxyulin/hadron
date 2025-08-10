@@ -5,9 +5,11 @@ use core::ptr::NonNull;
 use crate::{
     module::InternalModule,
     response::{
-        BootTimeResponse, BootloaderInfoResponse, EntryPointResponse, ExecutableAddressResponse,
-        ExecutableFileResponse, FirmwareTypeResponse, FramebufferResponse, HhdmResponse, MemoryMapResponse,
-        ModuleResponse, PagingModeResponse, Response, RsdpResponse, StackSizeResponse,
+        BootTimeResponse, BootloaderInfoResponse, EfiMemoryMapResponse, EfiSystemTableResponse,
+        EntryPointResponse, ExecutableAddressResponse, ExecutableFileResponse,
+        FirmwareTypeResponse, FramebufferResponse, HhdmResponse, MemoryMapResponse, ModuleResponse,
+        MultiprocessorResponse, PagingModeResponse, Response, RsdpResponse, SmBiosResponse,
+        StackSizeResponse,
     },
 };
 
@@ -15,6 +17,15 @@ use crate::{
 macro_rules! request_magic {
     ($p3:literal, $p4:literal) => {
         [0xc7b1dd30df4c8b88, 0x0a82e883a194f07b, $p3, $p4]
+    };
+}
+
+macro_rules! request_boilerplate {
+    ($ty:ty) => {
+        /// Returns the response of the request.
+        pub fn response(&self) -> Option<&$ty> {
+            self.response.get()
+        }
     };
 }
 
@@ -71,6 +82,7 @@ pub struct BootloaderInfoRequest {
 }
 
 impl BootloaderInfoRequest {
+    request_boilerplate!(BootloaderInfoResponse);
     pub const LATEST_REVISION: u64 = 0;
 
     /// Creates a new request.
@@ -80,11 +92,6 @@ impl BootloaderInfoRequest {
             revision: Self::LATEST_REVISION,
             response: Response::none(),
         }
-    }
-
-    /// Returns the response of the request.
-    pub fn get_response(&self) -> Option<&BootloaderInfoResponse> {
-        self.response.get()
     }
 }
 
@@ -99,6 +106,7 @@ pub struct FirmwareTypeRequest {
 
 impl FirmwareTypeRequest {
     pub const LATEST_REVISION: u64 = 0;
+    request_boilerplate!(FirmwareTypeResponse);
 
     /// Creates a new request.
     pub const fn new() -> Self {
@@ -107,11 +115,6 @@ impl FirmwareTypeRequest {
             revision: Self::LATEST_REVISION,
             response: Response::none(),
         }
-    }
-
-    /// Returns the response of the request.
-    pub fn get_response(&self) -> Option<&FirmwareTypeResponse> {
-        self.response.get()
     }
 }
 
@@ -127,6 +130,7 @@ pub struct StackSizeRequest {
 
 impl StackSizeRequest {
     pub const LATEST_REVISION: u64 = 0;
+    request_boilerplate!(StackSizeResponse);
 
     /// Creates a new request.
     ///
@@ -138,11 +142,6 @@ impl StackSizeRequest {
             response: Response::none(),
             stack_size,
         }
-    }
-
-    /// Returns the response of the request.
-    pub fn get_response(&self) -> Option<&StackSizeResponse> {
-        self.response.get()
     }
 }
 
@@ -156,6 +155,7 @@ pub struct HhdmRequest {
 
 impl HhdmRequest {
     pub const LATEST_REVISION: u64 = 0;
+    request_boilerplate!(HhdmResponse);
 
     /// Creates a new request.
     pub const fn new() -> Self {
@@ -164,11 +164,6 @@ impl HhdmRequest {
             revision: Self::LATEST_REVISION,
             response: Response::none(),
         }
-    }
-
-    /// Returns the response of the request.
-    pub fn get_response(&self) -> Option<&HhdmResponse> {
-        self.response.get()
     }
 }
 
@@ -182,6 +177,7 @@ pub struct FramebufferRequest {
 
 impl FramebufferRequest {
     pub const LATEST_REVISION: u64 = 1;
+    request_boilerplate!(FramebufferResponse);
 
     /// Creates a new request.
     pub const fn new() -> Self {
@@ -195,11 +191,6 @@ impl FramebufferRequest {
             revision,
             response: Response::none(),
         }
-    }
-
-    /// Returns the response of the request.
-    pub fn get_response(&self) -> Option<&FramebufferResponse> {
-        self.response.get()
     }
 }
 
@@ -219,6 +210,7 @@ pub struct PagingModeRequest {
 
 impl PagingModeRequest {
     pub const LATEST_REVISION: u64 = 1;
+    request_boilerplate!(PagingModeResponse);
 
     /// Creates a new request.
     pub const fn new(paging_mode: u64, max_mode: u64, min_mode: u64) -> Self {
@@ -230,11 +222,6 @@ impl PagingModeRequest {
             max_mode,
             min_mode,
         }
-    }
-
-    /// Returns the response of the request.
-    pub fn get_response(&self) -> Option<&PagingModeResponse> {
-        self.response.get()
     }
 }
 
@@ -248,6 +235,7 @@ pub struct MemoryMapRequest {
 
 impl MemoryMapRequest {
     pub const LATEST_REVISION: u64 = 0;
+    request_boilerplate!(MemoryMapResponse);
 
     /// Creates a new request.
     pub const fn new() -> Self {
@@ -256,11 +244,6 @@ impl MemoryMapRequest {
             revision: Self::LATEST_REVISION,
             response: Response::none(),
         }
-    }
-
-    /// Returns the response of the request.
-    pub fn get_response(&self) -> Option<&MemoryMapResponse> {
-        self.response.get()
     }
 }
 
@@ -275,6 +258,7 @@ pub struct EntryPointRequest {
 
 impl EntryPointRequest {
     pub const LATEST_REVISION: u64 = 0;
+    request_boilerplate!(EntryPointResponse);
 
     /// Creates a new request.
     pub const fn new(entry_point: u64) -> Self {
@@ -284,11 +268,6 @@ impl EntryPointRequest {
             response: Response::none(),
             entry_point,
         }
-    }
-
-    /// Returns the response of the request.
-    pub fn get_response(&self) -> Option<&EntryPointResponse> {
-        self.response.get()
     }
 }
 
@@ -302,6 +281,7 @@ pub struct ExecutableFileRequest {
 
 impl ExecutableFileRequest {
     pub const LATEST_REVISION: u64 = 0;
+    request_boilerplate!(ExecutableFileResponse);
 
     /// Creates a new request.
     pub const fn new() -> Self {
@@ -310,11 +290,6 @@ impl ExecutableFileRequest {
             revision: Self::LATEST_REVISION,
             response: Response::none(),
         }
-    }
-
-    /// Returns the response of the request.
-    pub fn get_response(&self) -> Option<&ExecutableFileResponse> {
-        self.response.get()
     }
 }
 
@@ -335,6 +310,7 @@ unsafe impl Sync for ModuleRequest {}
 impl ModuleRequest {
     // TODO: Technically internal modules are revision 1, but we don't support revision 1.
     pub const LATEST_REVISION: u64 = 0;
+    request_boilerplate!(ModuleResponse);
 
     /// Creates a new request.
     pub const fn new() -> Self {
@@ -346,11 +322,6 @@ impl ModuleRequest {
             internal_module_count: 0,
             internal_modules: NonNull::dangling(),
         }
-    }
-
-    /// Returns the response of the request.
-    pub fn get_response(&self) -> Option<&ModuleResponse> {
-        self.response.get()
     }
 }
 
@@ -364,6 +335,7 @@ pub struct RsdpRequest {
 
 impl RsdpRequest {
     pub const LATEST_REVISION: u64 = 0;
+    request_boilerplate!(RsdpResponse);
 
     /// Creates a new request.
     pub const fn new() -> Self {
@@ -372,11 +344,6 @@ impl RsdpRequest {
             revision: Self::LATEST_REVISION,
             response: Response::none(),
         }
-    }
-
-    /// Returns the response of the request.
-    pub fn get_response(&self) -> Option<&RsdpResponse> {
-        self.response.get()
     }
 }
 
@@ -390,6 +357,7 @@ pub struct BootTimeRequest {
 
 impl BootTimeRequest {
     pub const LATEST_REVISION: u64 = 0;
+    request_boilerplate!(BootTimeResponse);
 
     /// Creates a new request.
     pub const fn new() -> Self {
@@ -398,11 +366,6 @@ impl BootTimeRequest {
             revision: Self::LATEST_REVISION,
             response: Response::none(),
         }
-    }
-
-    /// Returns the response of the request.
-    pub fn get_response(&self) -> Option<&BootTimeResponse> {
-        self.response.get()
     }
 }
 
@@ -416,6 +379,7 @@ pub struct ExecutableAddressRequest {
 
 impl ExecutableAddressRequest {
     pub const LATEST_REVISION: u64 = 0;
+    request_boilerplate!(ExecutableAddressResponse);
 
     /// Creates a new request.
     pub const fn new() -> Self {
@@ -425,16 +389,116 @@ impl ExecutableAddressRequest {
             response: Response::none(),
         }
     }
+}
 
-    /// Returns the response of the request.
-    pub fn get_response(&self) -> Option<&ExecutableAddressResponse> {
-        self.response.get()
+#[repr(C)]
+pub struct SmBiosRequest {
+    id: [u64; 4],
+    revision: u64,
+    response: Response<SmBiosResponse>,
+}
+
+impl SmBiosRequest {
+    pub const LATEST_REVISION: u64 = 0;
+    request_boilerplate!(SmBiosResponse);
+
+    /// Creates a new request.
+    pub const fn new() -> Self {
+        Self {
+            id: request_magic!(0x9e9046f11e095391, 0xaa4a520fefbde5ee),
+            revision: Self::LATEST_REVISION,
+            response: Response::none(),
+        }
     }
 }
 
-// TODO: Implement remaining requests:
-//  - Multiprocessor request
-//  - SMBIOS request
-//  - EFI System Table request
-//  - EFI Memory Map request
-//  - Device Tree Blob request
+#[repr(C)]
+pub struct EfiSystemTableRequest {
+    id: [u64; 4],
+    revision: u64,
+    response: Response<EfiSystemTableResponse>,
+}
+
+impl EfiSystemTableRequest {
+    pub const LATEST_REVISION: u64 = 0;
+    request_boilerplate!(EfiSystemTableResponse);
+
+    /// Creates a new request.
+    pub const fn new() -> Self {
+        Self {
+            id: request_magic!(0x5ceba5163eaaf6d6, 0x0a6981610cf65fcc),
+            revision: Self::LATEST_REVISION,
+            response: Response::none(),
+        }
+    }
+}
+
+#[repr(C)]
+pub struct EfiMemoryMapRequest {
+    id: [u64; 4],
+    revision: u64,
+    response: Response<EfiMemoryMapResponse>,
+}
+
+impl EfiMemoryMapRequest {
+    pub const LATEST_REVISION: u64 = 0;
+    request_boilerplate!(EfiMemoryMapResponse);
+
+    /// Creates a new request.
+    pub const fn new() -> Self {
+        Self {
+            id: request_magic!(0x7df62a431d6872d5, 0xa4fcdfb3e57306c8),
+            revision: Self::LATEST_REVISION,
+            response: Response::none(),
+        }
+    }
+}
+
+#[repr(C)]
+pub struct MultiprocessorRequest {
+    id: [u64; 4],
+    revision: u64,
+    response: Response<MultiprocessorResponse>,
+    flags: u64,
+}
+
+impl MultiprocessorRequest {
+    pub const LATEST_REVISION: u64 = 0;
+    request_boilerplate!(MultiprocessorResponse);
+
+    /// Creates a new request.
+    pub const fn new(flags: u64) -> Self {
+        Self {
+            id: request_magic!(0x9e9046f11e095391, 0xaa4a520fefbde5ee),
+            revision: Self::LATEST_REVISION,
+            response: Response::none(),
+            flags,
+        }
+    }
+}
+
+#[cfg(feature = "risc-v")]
+pub mod risc_v {
+    use crate::response::riscv_v::BspHardIdResponse;
+
+    #[repr(C)]
+    pub struct BspHardIdRequest {
+        id: [u64; 4],
+        revision: u64,
+        response: Response<BspHardIdResponse>,
+    }
+
+    impl BspHardIdRequest {
+        pub const LATEST_REVISION: u64 = 0;
+        request_boilerplate!(BspHardIdResponse);
+
+        /// Creates a new request.
+        pub const fn new() -> Self {
+            Self {
+                id: request_magic!(0x1369359f025525f9, 0x2ff2a56178391bb6),
+                revision: Self::LATEST_REVISION,
+                response: Response::none(),
+            }
+        }
+    }
+}
