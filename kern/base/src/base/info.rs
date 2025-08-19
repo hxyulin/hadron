@@ -3,16 +3,19 @@
 
 use conquer_once::spin::OnceCell;
 use spin::Mutex;
+use x86_64::VirtAddr;
 
 use super::arch::x86_64::apic::Apics;
 
 pub struct KernelInfo {
+    pub base_addr: Mutex<VirtAddr>,
     pub pics: OnceCell<Mutex<Apics>>,
 }
 
 impl KernelInfo {
     pub const fn new() -> Self {
         Self {
+            base_addr: Mutex::new(VirtAddr::new(0)),
             pics: OnceCell::uninit(),
         }
     }

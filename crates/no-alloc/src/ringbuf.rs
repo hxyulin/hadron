@@ -3,7 +3,7 @@ use core::mem::MaybeUninit;
 /// A Circular / Ring buffer
 /// 'Full' is considered when it is SIZE-1
 #[derive(Clone, Copy)]
-pub struct RingBuf<T: core::marker::Copy, const SIZE: usize> {
+pub struct RingBuf<T: Copy, const SIZE: usize> {
     buf: [MaybeUninit<T>; SIZE],
     head: usize,
     tail: usize,

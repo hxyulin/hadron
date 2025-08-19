@@ -1,7 +1,7 @@
 use core::fmt::Arguments;
 
 use alloc::boxed::Box;
-use hadron_base::base::mem::allocator::FrameBasedAllocator;
+use hadron_base::base::{info::kernel_info, mem::allocator::FrameBasedAllocator};
 use x86_64::{
     PhysAddr, VirtAddr,
     structures::paging::{FrameAllocator, PageSize, PageTableFlags, PhysFrame, Size4KiB},
@@ -69,18 +69,6 @@ pub fn limine_print_panic(info: &core::panic::PanicInfo) {
             location.line(),
             location.column()
         ));
-    }
-
-    // We check if the heap is available
-    if ALLOCATOR.generic_size() != 0 {
-        // Backtracing requires the heap
-        let mut unwinder = hadron_base::util::backtrace::create_unwinder(&machine_state);
-        while let Ok(Some(frame)) = unwinder.next() {
-            // TODO: Maybe normalize the pc (subtract the kernel load addr)
-            _ = writer.write_fmt(format_args!("    at {:#X}\n", frame.pc));
-        }
-    } else {
-        _ = writer.write_str("PANIC: No allocator available for backtrace\n");
     }
 
     _ = writer.write_fmt(format_args!("{}", machine_state));
@@ -159,6 +147,7 @@ fn populate_boot_info() {
     let kernel_addr = requests::EXECUTABLE_ADDRESS.response().unwrap();
     boot_info.kernel_start_phys = PhysAddr::new(kernel_addr.physical_address);
     boot_info.kernel_start_virt = VirtAddr::new(kernel_addr.virtual_address);
+    *kernel_info().base_addr.lock() = boot_info.kernel_start_virt;
     write_fmt(format_args!(
         "BOOT: kernel loaded at {:#x}\n",
         boot_info.kernel_start_virt

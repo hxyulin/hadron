@@ -78,22 +78,6 @@ SECTIONS
         *(.data .data.*)
     } :data
 
-    . = ALIGN(CONSTANT(MAXPAGESIZE));
-    .eh_frame : {
-        __EH_FRAME_START = .;
-        *(.eh_frame .eh_frame.*)
-        __EH_FRAME_END = .;
-    } :eh_frame
-
-    . = ALIGN(CONSTANT(MAXPAGESIZE));
-    .eh_frame_hdr : {
-        __EH_FRAME_HDR_START = .;
-        *(.eh_frame_hdr)
-        __EH_FRAME_HDR_END = .;
-    } :eh_frame_hdr :eh_frame
-
-    . = ALIGN(CONSTANT(MAXPAGESIZE));
-
     /* NOTE: .bss needs to be the last thing mapped to :data, otherwise lots of */
     /* unnecessary zeros will be written to the binary. */
     /* If you need, for example, .init_array and .fini_array, those should be placed */
@@ -105,5 +89,11 @@ SECTIONS
 
     . = ALIGN(CONSTANT(MAXPAGESIZE));
     _kernel_end = .;
+
+    /* Discard .note.* and .eh_frame* since they may cause issues on some hosts. */
+    /DISCARD/ : {
+        *(.eh_frame*)
+        *(.note .note.*)
+    }
 }
 

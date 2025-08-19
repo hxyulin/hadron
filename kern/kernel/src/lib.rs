@@ -6,6 +6,7 @@
 
 use alloc::vec::Vec;
 use hadron_base::{
+    println,
     KernelParams,
     base::arch::x86_64::acpi::{self, PCIeBusRegion},
 };
@@ -47,6 +48,11 @@ extern "Rust" fn kernel_main(params: KernelParams) -> ! {
 
     #[cfg(test)]
     hadron_test::exit_qemu(hadron_test::ExitCode::Success);
+    end();
+}
+
+#[inline(never)]
+fn end() -> ! {
     panic!("reached end of kernel");
 }
 
@@ -81,8 +87,13 @@ pub fn kernel_panic(info: &core::panic::PanicInfo) -> ! {
     if boot::is_boot() {
         boot::boot_panic(info);
     } else {
-        use hadron_base::util::backtrace::panic_backtrace;
-        panic_backtrace(info);
+        use hadron_base::util::machine_state::MachineState;
+        println!("KERNEL PANIC: {}", info.message());
+        if let Some(location) = info.location() {
+            println!("    at {}:{}:{}", location.file(), location.line(), location.column());
+        }
+        let machine_state = MachineState::here();
+        println!("{}", machine_state);
         log::logger().flush();
         loop {
             x86_64::instructions::hlt();

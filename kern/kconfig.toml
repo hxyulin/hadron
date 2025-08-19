@@ -14,12 +14,6 @@ depends = []
 type = "bool"
 default = false
 
-[option.backtrace]
-description = "Enable kernel backtrace"
-depends = []
-type = "bool"
-default = false
-
 [option.smp]
 description = "Enable SMP"
 depends = []
