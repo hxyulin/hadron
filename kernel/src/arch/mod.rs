@@ -1,0 +1,8 @@
+#[cfg(target_arch = "x86_64")]
+pub mod x86_64;
+
+mod addr;
+pub use addr::{VirtAddr, PhysAddr};
+
+pub mod instructions;
+pub mod registers;

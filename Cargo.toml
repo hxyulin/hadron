@@ -1,24 +1,10 @@
 [workspace]
 resolver = "2"
 members = [
-    "crates/buildscript",
-    "crates/hadron-driver-macros",
-    "crates/hadron-driver-api",
-    "crates/hadron-macros",
-    "crates/hadron-test",
-    "crates/limine",
-    "crates/menuconfig",
-    "crates/no-alloc",
-    "crates/volatile",
-    "crates/kconfig",
-    "drivers",
-    "kern/base",
-    "kern/device",
-    "kern/kernel",
-    "kern/boot",
+    "crates/*",
+    "kernel",
 ]
 default-members = ["crates/buildscript"]
-exclude = ["util"]
 
 [workspace.package]
 version = "0.0.1"
@@ -36,8 +22,6 @@ test-success-exit-code = 33
 test-args = [
     "-device",
     "isa-debug-exit,iobase=0xf4,iosize=0x04",
-    "-display",
-    "none",
 ]
 run-args = ["-s"]
 
@@ -54,13 +38,6 @@ run-command = [
 vars = { machine = "q35" }
 
 [workspace.dependencies]
-hadron-base = { path = "kern/base", default-features = false }
-hadron-boot = { path = "kern/boot", default-features = false }
-hadron-device = { path = "kern/device", default-features = false }
-hadron-drivers = { path = "drivers", default-features = false }
-hadron-macros = { path = "crates/hadron-macros", default-features = false }
-hadron-driver-api = { path = "crates/hadron-driver-api", default-features = false }
-
 kconfig = { path = "crates/kconfig", default-features = false }
 menuconfig = { path = "crates/menuconfig", default-features = false }
 limine = { path = "crates/limine", default-features = false }
@@ -75,3 +52,4 @@ lazy_static = { version = "1.5.0", features = ["spin_no_std"] }
 log = "0.4.27"
 bitflags = "2.9.0"
 spin = "0.10.0"
+chrono = { version = "0.4.40", default-features = false, features = ["alloc"] }

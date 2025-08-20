@@ -1,5 +1,2 @@
 # The directory to look for kernel configuration files.
-include = [
-    "kern",
-    "drivers",
-]
+include = []

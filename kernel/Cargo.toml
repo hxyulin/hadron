@@ -1,0 +1,21 @@
+[package]
+name = "hadron-kernel"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "hadron-kernel"
+path = "src/main.rs"
+test = false
+bench = false
+
+[dependencies]
+bitflags = { workspace = true, features = ["bytemuck"] }
+bytemuck = "1.23.2"
+lazy_static.workspace = true
+limine.workspace = true
+spin.workspace = true
+static_assertions = { workspace = true, features = ["nightly"] }
+
+uart_16550 = { version = "0.3.2", features = ["nightly"] }

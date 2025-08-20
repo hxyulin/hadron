@@ -1,7 +1,6 @@
 # Hadron
 
-Hadron is a POSIX compliant, secure, and open-source operating system written in Rust.
-Internally, Hadron takes inspiration from Linux, but is not a direct port / fork.
+Hadron is a POSIX compliant, from-scratch, and open-source operating system written in Rust.
 
 ## Building
 

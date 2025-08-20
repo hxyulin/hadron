@@ -46,31 +46,37 @@ fn main() {
     let task = Task::from_str(&args.next().unwrap_or("build".to_string())).unwrap();
 
     match task {
-        Task::Build => build(false, vec![]),
+        Task::Build => build(args.collect()),
         Task::Clean => clean(),
-        Task::Run => build(true, args.collect()),
+        Task::Run => run(args.collect()),
         Task::Menuconfig => menuconfig(),
         Task::Defconfig => defconfig(),
-        Task::Test => test(),
+        Task::Test => test(args.collect()),
     }
 }
+fn build(args: Vec<String>) {
+    println!("building kernel...");
+    build_kernel("build", args);
+}
 
-fn build(run: bool, args: Vec<String>) {
+fn run(args: Vec<String>) {
+    println!("running kernel...");
+    build_kernel("run", args);
+}
+
+fn build_kernel(arg: &str, args: Vec<String>) {
+    /*
     if !std::fs::exists(CONFIG_PATH).unwrap_or(false) {
         eprintln!("Failed to read config file at {}", CONFIG_PATH);
         println!("Generate a config using make defconfig");
         return;
     }
     let config = menuconfig::deserialize(CONFIG_PATH).unwrap();
+    */
     let mut command = Command::new("cargo");
-    if run {
-        println!("Running Hadron kernel");
-        command.arg("run");
-    } else {
-        println!("Building Hadron kernel");
-        command.arg("build");
-    }
+    command.arg(arg);
     command.args(&["--package", "hadron-kernel"]);
+    /*
     if !config.get::<bool>("debug").unwrap() {
         command.args(&["--release"]);
     }
@@ -82,6 +88,7 @@ fn build(run: bool, args: Vec<String>) {
     if !features.is_empty() {
         command.args(&["--features", &features.join(",")]);
     }
+    */
 
     command.args(&["--target", "targets/x86_64-unknown-hadron.json"]);
     command.args(&[
@@ -117,9 +124,9 @@ fn defconfig() {
     menuconfig::generate_defconfig(CONFIG_PATH).unwrap();
 }
 
-fn test() {
+fn test(args: Vec<String>) {
     println!("Running tests");
-    let packages = ["hadron-kernel", "hadron-base", "hadron-device", "hadron-drivers"];
+    let packages = [];
     for package in packages {
         let mut command = Command::new("cargo");
         command.arg("test");
@@ -131,4 +138,6 @@ fn test() {
         ]);
         command.status().unwrap();
     }
+
+    build_kernel("test", args);
 }
