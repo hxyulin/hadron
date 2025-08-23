@@ -2,7 +2,7 @@ use core::panic::PanicInfo;
 
 use spin::Mutex;
 
-pub(crate) static ALT_PANIC_HANDLER: Mutex<Option<fn(&PanicInfo) -> !>> = Mutex::new(None);
+static ALT_PANIC_HANDLER: Mutex<Option<fn(&PanicInfo) -> !>> = Mutex::new(None);
 
 #[panic_handler]
 fn kernel_panic(info: &PanicInfo) -> ! {
@@ -11,4 +11,8 @@ fn kernel_panic(info: &PanicInfo) -> ! {
     } else {
     }
     loop {}
+}
+
+pub fn set_alternate_panic_handler(panic: Option<fn(&PanicInfo) -> !>) {
+    *ALT_PANIC_HANDLER.lock() = panic;
 }

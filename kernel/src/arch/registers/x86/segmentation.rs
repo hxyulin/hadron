@@ -1,11 +1,17 @@
 use core::arch::asm;
 
+use crate::arch::x86_64::core::idt::PrivilegeLevel;
+
 #[repr(transparent)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SegmentSelector(pub u16);
 
 impl SegmentSelector {
     pub const NULL: Self = Self(0);
+
+    pub const fn new(index: u16, dpl: PrivilegeLevel) -> Self {
+        Self(index << 3 | dpl as u16)
+    }
 }
 
 macro_rules! impl_register {

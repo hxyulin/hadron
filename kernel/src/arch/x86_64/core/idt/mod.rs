@@ -1,3 +1,6 @@
+//! An IDT Implementaion in Rust
+//! Inspired by the x86_64 crate
+
 use core::{fmt, marker::PhantomData};
 
 use spin::Mutex;
@@ -6,16 +9,20 @@ use crate::{
     arch::{
         VirtAddr,
         registers::{RFlags, segmentation::SegmentSelector},
+        x86_64::core::gdt::Selectors,
     },
     util::bits::BitHelper,
 };
 
 mod handlers;
 
+/// A Basic Handler for a x86-interrupt
+/// Arguments:
+/// stack_frame: InterruptStackFrame
 type HandlerFn = extern "x86-interrupt" fn(stack_frame: InterruptStackFrame);
-type NeverHandlerFn = extern "x86-interrupt" fn(stack_frame: InterruptStackFrame) -> !;
+type DivergingHandlerFn = extern "x86-interrupt" fn(stack_frame: InterruptStackFrame) -> !;
 type HandlerFnWithErrCode = extern "x86-interrupt" fn(stack_frame: InterruptStackFrame, error_code: u64);
-type NeverHandlerFnWithErrCode = extern "x86-interrupt" fn(stack_frame: InterruptStackFrame, error_code: u64) -> !;
+type DivergingHandlerFnWithErrCode = extern "x86-interrupt" fn(stack_frame: InterruptStackFrame, error_code: u64) -> !;
 
 pub unsafe trait HandlerFunc {
     fn to_addr(self) -> VirtAddr;
@@ -32,9 +39,9 @@ macro_rules! handler_func_impl {
 }
 
 handler_func_impl!(HandlerFn);
-handler_func_impl!(NeverHandlerFn);
+handler_func_impl!(DivergingHandlerFn);
 handler_func_impl!(HandlerFnWithErrCode);
-handler_func_impl!(NeverHandlerFnWithErrCode);
+handler_func_impl!(DivergingHandlerFnWithErrCode);
 
 #[repr(C, align(16))]
 pub struct InterruptDescriptorTable<'a> {
@@ -46,7 +53,7 @@ pub struct InterruptDescriptorTable<'a> {
     pub bound_range_exceeded: Entry<HandlerFn>,
     pub invalid_opcode: Entry<HandlerFn>,
     pub device_not_available: Entry<HandlerFn>,
-    pub double_fault: Entry<NeverHandlerFnWithErrCode>,
+    pub double_fault: Entry<DivergingHandlerFnWithErrCode>,
     coprocessor_segment_overrun: Entry<HandlerFn>,
     pub invalid_tss: Entry<HandlerFnWithErrCode>,
     pub segment_not_present: Entry<HandlerFnWithErrCode>,
@@ -56,7 +63,7 @@ pub struct InterruptDescriptorTable<'a> {
     reserved_1: Entry<HandlerFn>,
     pub x87_floating_point: Entry<HandlerFn>,
     pub alignment_check: Entry<HandlerFnWithErrCode>,
-    pub machine_check: Entry<NeverHandlerFn>,
+    pub machine_check: Entry<DivergingHandlerFn>,
     pub simd_floating_point: Entry<HandlerFn>,
     pub virtualization: Entry<HandlerFn>,
     pub cp_protection_exception: Entry<HandlerFnWithErrCode>,
@@ -144,11 +151,23 @@ pub enum PrivilegeLevel {
     Ring3 = 3,
 }
 
+impl PrivilegeLevel {
+    pub const fn from_u16(val: u16) -> Self {
+        match val {
+            0 => Self::Ring0,
+            1 => Self::Ring1,
+            2 => Self::Ring2,
+            3 => Self::Ring3,
+            _ => panic!("invalid privilege level"),
+        }
+    }
+}
+
 impl<F> Entry<F> {
     pub const fn missing() -> Self {
         Self {
             pointer_low: 0,
-            options: EntryOptions::empty(),
+            options: EntryOptions::default(),
             pointer_middle: 0,
             pointer_high: 0,
             reserved: 0,
@@ -169,7 +188,7 @@ impl<F> Entry<F> {
         self.pointer_middle = (addr >> 16) as u16;
         self.pointer_high = (addr >> 32) as u32;
 
-        self.options = EntryOptions::interrupt_64();
+        self.options = EntryOptions::default();
         unsafe { self.options.set_cs(CS::get_seg()) };
         self.options.set_present(true);
         &mut self.options
@@ -182,6 +201,7 @@ impl<F: HandlerFunc> Entry<F> {
     }
 }
 
+/// Options for Interrupt Entries
 #[repr(C)]
 #[derive(Clone, Copy, PartialEq)]
 pub struct EntryOptions {
@@ -189,21 +209,17 @@ pub struct EntryOptions {
     bits: u16,
 }
 
+impl const Default for EntryOptions {
+    /// Creates an empty interrupt entry
+    fn default() -> Self {
+        Self {
+            cs: SegmentSelector(0),
+            bits: 0b0000_1110_0000_0000,
+        }
+    }
+}
+
 impl EntryOptions {
-    const fn empty() -> Self {
-        Self {
-            cs: SegmentSelector(0),
-            bits: 0,
-        }
-    }
-
-    const fn interrupt_64() -> Self {
-        Self {
-            cs: SegmentSelector(0),
-            bits: 0b1110_0000_0000,
-        }
-    }
-
     /// Set the Code Segment used by the Interrupt
     pub unsafe fn set_cs(&mut self, cs: SegmentSelector) -> &mut Self {
         self.cs = cs;
@@ -216,6 +232,9 @@ impl EntryOptions {
         self
     }
 
+    /// Disables Interrupts
+    /// This converts the gate type from a trap to a interrupt,
+    /// which cleans the IF flag
     #[inline]
     pub fn disable_interrupts(&mut self, disable: bool) -> &mut Self {
         self.bits.set_bit(8, !disable);
@@ -270,6 +289,12 @@ pub fn init() {
 
     idt.divide_error.set_handler_fn(handlers::divide_by_zero);
     idt.breakpoint.set_handler_fn(handlers::breakpoint);
+    unsafe {
+        idt.double_fault
+            .set_handler_fn(handlers::double_fault)
+            .set_stack_index(Selectors::DOUBLE_FAULT_IST_INDEX as u16);
+    };
+    idt.page_fault.set_handler_fn(handlers::page_fault);
 
     idt.load();
 }

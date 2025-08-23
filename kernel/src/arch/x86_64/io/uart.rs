@@ -91,3 +91,9 @@ impl fmt::Write for Uart16550 {
         Ok(())
     }
 }
+
+impl crate::util::kprint::LogConsole for Uart16550 {
+    fn write_byte(&mut self, byte: u8) {
+        self.write_byte(byte);
+    }
+}

@@ -1,8 +1,8 @@
 use core::mem::MaybeUninit;
 
 /// A fixed-size array, which has vector-like operations.
-#[derive(Debug, Clone)]
-pub struct ArrayVec<T: Copy, const N: usize> {
+#[derive(Debug)]
+pub struct ArrayVec<T, const N: usize> {
     data: [MaybeUninit<T>; N],
     len: usize,
 }
@@ -22,10 +22,7 @@ impl core::fmt::Display for ArrayVecError {
 
 impl core::error::Error for ArrayVecError {}
 
-impl<T, const N: usize> ArrayVec<T, N>
-where
-    T: Copy,
-{
+impl<T, const N: usize> ArrayVec<T, N> {
     /// Creates a new `ArrayVec` with no elements.
     ///
     /// # Examples
@@ -39,7 +36,7 @@ where
     /// ```
     pub const fn new() -> Self {
         Self {
-            data: [MaybeUninit::uninit(); N],
+            data: [const { MaybeUninit::uninit() }; N],
             len: 0,
         }
     }

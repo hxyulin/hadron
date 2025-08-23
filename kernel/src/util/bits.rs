@@ -25,7 +25,7 @@ macro_rules! impl_bit_helper {
                 assert!(bits.end != bits.start, "bits range must be at least 1 bit");
                 let mask = ((<$it>::MIN >> (bits.end - bits.start - 1)) as $ut) >> ($bc - bits.end);
                 *self &= !mask;
-                *self |= value << bits.start;
+                *self |= (value << bits.start) & mask;
             }
 
             fn get_bit(&self, bit: usize) -> bool {
@@ -50,6 +50,7 @@ impl_bit_helper!(u8, i8, 8);
 impl_bit_helper!(u16, i16, 16);
 impl_bit_helper!(u32, i32, 32);
 impl_bit_helper!(u64, i64, 64);
+impl_bit_helper!(u128, i128, 64);
 
 #[cfg(test)]
 mod tests {

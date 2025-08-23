@@ -7,11 +7,16 @@
     abi_x86_interrupt,
     const_trait_impl,
     macro_metavar_expr_concat,
+    const_default,
+    vec_push_within_capacity,
 )]
 #![reexport_test_harness_main = "test_main"]
 #![test_runner(crate::tests::test_runner)]
 
+extern crate alloc;
+
 mod boot;
+
 pub use boot::limine::entry as kernel_entry;
 pub mod arch;
 pub mod mm;
@@ -21,8 +26,10 @@ pub mod util;
 #[unsafe(no_mangle)]
 pub extern "Rust" fn kernel_main() -> ! {
     #[cfg(test)]
-    test_main();
-
+    {
+        test_main();
+        hadron_test::exit_qemu(hadron_test::ExitCode::Success);
+    }
     loop {}
 }
 
