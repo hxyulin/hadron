@@ -12,6 +12,7 @@ const LINE_STATUS_REG: u16 = 5; // Line Status Register (LSR) (R)
 const MODEM_STATUS_REG: u16 = 6; // Modem Status Register (MSR) (R)
 const SCRATCHPAD_REG: u16 = 7; // Scratchpad Register (SR) (RW)
 
+#[derive(Debug, Clone)]
 pub struct Uart16550 {
     port_base: u16,
 }
@@ -80,6 +81,10 @@ impl Uart16550 {
         }
         // Send the byte
         unsafe { outb(self.port_base + DATA_REG, byte) };
+    }
+
+    pub fn port(&self) -> u16 {
+        self.port_base
     }
 }
 

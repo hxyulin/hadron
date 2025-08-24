@@ -1,16 +1,20 @@
 use core::panic::PanicInfo;
 
+use alloc::boxed::Box;
+
 use crate::{
-    arch::{instructions::interrupts, x86_64::io::uart::Uart16550, PhysAddr, VirtAddr},
-    boot::{
-        frame_allocator::{BootstrapFrameAllocator},
-        info::BOOT_INFO,
-        page_table::BootstrapPageTable,
-    },
+    arch::{PhysAddr, VirtAddr, instructions::interrupts, x86_64::io::uart::Uart16550},
+    boot::{frame_allocator::BootstrapFrameAllocator, info::BOOT_INFO, page_table::BootstrapPageTable},
+    dev::drivers::platform::fb::FramebufferInfoAddr,
+    kprintln,
     mm::{
-        allocator::{bump::BumpAllocator, Locked}, mappings, page_table::PageTableFlags, paging::{FrameAllocator, PageSize, PhysFrame, Size4KiB}
+        allocator::{Locked, bump::BumpAllocator},
+        mappings,
+        page_table::PageTableFlags,
+        paging::{FrameAllocator, PageSize, PhysFrame, Size4KiB},
     },
     sync::cell::RacyCell,
+    util::panicking::set_alternate_panic_handler,
 };
 
 mod memory_map;
@@ -48,9 +52,12 @@ macro_rules! boot_println {
 }
 
 fn panic(info: &PanicInfo) -> ! {
-    boot_println!("\n--- BOOT PANIC ---");
-    boot_println!("message: {}", info);
-    boot_println!("\n--- END PANIC ---");
+    use core::fmt::Write;
+    let mut serial = unsafe { Uart16550::new(0x3F8) };
+    unsafe { serial.init() };
+    _ = writeln!(serial, "\n--- BOOT PANIC ---");
+    _ = writeln!(serial, "message: {}", info);
+    _ = writeln!(serial, "\n--- END PANIC ---");
     loop {}
 }
 
@@ -74,13 +81,6 @@ unsafe fn init_core() {
             "Limine base revision {} is not supported!\n",
             request::BASE_REVISION.revision(),
         );
-    }
-
-    if let Some(framebuffers) = request::FRAMEBUFFER.response() {
-        let framebuffers = framebuffers.framebuffers();
-        boot_println!("info: found {} framebuffers", framebuffers.len());
-    } else {
-        boot_println!("warn: bootloader did not send any framebuffers");
     }
 
     if let Some(info) = request::BOOTLOADER_INFO.response() {
@@ -126,6 +126,24 @@ unsafe fn populate_boot_info() {
         None => panic!("bootloader did not send memory map response"),
     }
 
+    if let Some(framebuffers) = request::FRAMEBUFFER.response() {
+        let framebuffers = framebuffers.framebuffers();
+        boot_println!("info: found {} framebuffers", framebuffers.len());
+        if let Some(fb) = framebuffers.first() {
+            use crate::dev::drivers::platform::fb::{FramebufferInfoAddr, PixelFormat};
+            boot_info.framebuffer = FramebufferInfoAddr {
+                width: fb.width() as u32,
+                height: fb.height() as u32,
+                pixel_format: PixelFormat::RGB,
+                stride: fb.pitch() as u32,
+                bpp: (fb.bpp() / 8) as u32,
+                addr: fb.address() as *mut u8,
+            };
+        }
+    } else {
+        boot_println!("warn: bootloader did not send any framebuffers");
+    }
+
     match request::RSDP.response() {
         Some(rsdp) => boot_info.rsdp_addr = PhysAddr::new(rsdp.address as usize),
         None => panic!("bootloader did not send rsdp response"),
@@ -166,11 +184,10 @@ fn allocate_pages() -> ! {
     pages_to_allocate += calculate_pages_needed(heap_frames as usize);
     let mmap_frames = mm_len.div_ceil(Size4KiB::SIZE);
     pages_to_allocate += calculate_pages_needed(mmap_frames as usize);
-    /*
-    if let Some(framebuffer) = FRAMEBUFFER.get().as_ref() {
-        pages_to_allocate += calculate_pages_needed(framebuffer.fb_size().div_ceil(Size4KiB::SIZE as usize));
+    {
+        let size = (boot_info.framebuffer.stride as usize) * (boot_info.framebuffer.height as usize);
+        pages_to_allocate += calculate_pages_needed(size.div_ceil(Size4KiB::SIZE as usize));
     }
-    */
     let frame = frame_allocator.allocate_mapped_contiguous(pages_to_allocate).unwrap();
     let allocator = Locked::new(unsafe {
         BumpAllocator::new(
@@ -188,9 +205,8 @@ fn allocate_pages() -> ! {
     );
 
     // Map text section with execute permissions
-    for i in 0..kernel_size.0 / Size4KiB::SIZE{
+    for i in 0..kernel_size.0 / Size4KiB::SIZE {
         let offset = i * Size4KiB::SIZE;
-        debug_print!("mapped kernel text: {:#x} -> {:#x}\n", kernel_virt + offset, start_phys + offset);
         page_table.map(
             kernel_virt + offset,
             PhysFrame::from_start_address(start_phys + offset),
@@ -232,6 +248,28 @@ fn allocate_pages() -> ! {
     }
     boot_info.heap = (mappings::KERNEL_HEAP_START, HEAP_SIZE);
 
+    {
+        let framebuffer = &mut boot_info.framebuffer;
+        let fb_virt = VirtAddr::new(framebuffer.addr as usize);
+        let fb_phys = PhysAddr::new(fb_virt.as_usize() - boot_info.hhdm_offset as usize);
+        let fb_pages = ((framebuffer.stride as usize) * (framebuffer.height as usize)).div_ceil(Size4KiB::SIZE);
+
+        for i in 0..fb_pages {
+            let offset = i * Size4KiB::SIZE;
+            page_table.map(
+                mappings::FRAMEBUFFER_START + offset,
+                PhysFrame::from_start_address(fb_phys + offset),
+                PageTableFlags::PRESENT
+                    | PageTableFlags::WRITABLE
+                    | PageTableFlags::NO_EXECUTE
+                    | PageTableFlags::NO_CACHE,
+                &mut frame_allocator,
+            );
+        }
+
+        framebuffer.addr = mappings::FRAMEBUFFER_START.as_mut_ptr();
+    }
+
     // Allocate memory map
     for i in 0..mmap_frames {
         let offset = i * Size4KiB::SIZE;
@@ -245,7 +283,7 @@ fn allocate_pages() -> ! {
 
     let page_table_ptr = page_table.as_phys_addr().as_u64();
 
-    boot_println!("jumping to stage 2...");
+    boot_println!("info: jumping to limine stage 2...");
     // Setup the page tables, switch to the new stack, and push a null pointer to the stack
     unsafe {
         core::arch::asm!(
@@ -261,8 +299,75 @@ fn allocate_pages() -> ! {
     }
 }
 
+fn setup_platform_dev() {
+    use crate::dev::{
+        DEVICES,
+        platform::{PlatformDev, PlatformDevAddr, PlatformDevType},
+    };
+
+    let mut platform_devs = DEVICES.platform();
+
+    if let Some(serial) = SERIAL.get_mut().take() {
+        platform_devs.add_device(PlatformDev::new(
+            "io_dev",
+            PlatformDevType::IoDevice,
+            PlatformDevAddr::io_port(serial.port()),
+        ));
+    }
+
+    let fb = &BOOT_INFO.get_mut().framebuffer;
+    platform_devs.add_device(PlatformDev::new(
+        "efi_fb",
+        PlatformDevType::Framebuffer,
+        PlatformDevAddr::addr((fb as *const FramebufferInfoAddr) as usize),
+    ));
+
+    let drivers = crate::dev::drivers::platform::available_drivers();
+
+    // Attach Drivers to Devices
+    for device in platform_devs.iter_mut() {
+        for drv in drivers {
+            if drv.matches(device) {
+                if !drv.probe(device) {
+                    continue;
+                }
+                drv.attach(device);
+                break;
+            }
+        }
+    }
+}
+
+fn setup_logger() {
+    use crate::dev::DEVICES;
+    use crate::util::kprint::ConsoleWriter;
+    let mut platform_devs = DEVICES.platform();
+
+    let mut logger = crate::util::kprint::LOGGER.lock();
+    for dev in platform_devs.iter() {
+        if let Some(drv) = &dev.dev.drv {
+            match drv.caps.console {
+                None => continue,
+                Some(_) => logger.loggers.push(Box::new(ConsoleWriter::new(&dev.dev))),
+            }
+        }
+    }
+
+    // We no longer use our alternate logger
+    set_alternate_panic_handler(None);
+}
+
 fn stage_2() -> ! {
-    debug_print!("stage 2...\n");
+    let boot_info = BOOT_INFO.get_mut();
+    // Initialize the heap
+    unsafe { crate::mm::allocator::ALLOCATOR.init(boot_info.heap.0.as_mut_ptr(), boot_info.heap.1) };
+
+    // We setup devices to our proper device system
+    setup_platform_dev();
+    setup_logger();
+
+    kprintln!(Debug, "Hello World!");
+
     unsafe extern "Rust" {
         fn kernel_main() -> !;
     }

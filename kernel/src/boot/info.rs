@@ -1,4 +1,5 @@
 use crate::{arch::{PhysAddr, VirtAddr}, boot::memory_map::BootstrapMemoryMap, sync::cell::RacyCell};
+use crate::dev::drivers::platform::fb::FramebufferInfoAddr;
 
 pub struct BootInfo {
     pub hhdm_offset: u64,
@@ -7,6 +8,7 @@ pub struct BootInfo {
     pub memory_map: BootstrapMemoryMap,
     pub rsdp_addr: PhysAddr,
     pub heap: (VirtAddr, usize),
+    pub framebuffer: FramebufferInfoAddr,
 }
 
 impl BootInfo {
@@ -18,6 +20,7 @@ impl BootInfo {
             memory_map: BootstrapMemoryMap::empty(),
             rsdp_addr: PhysAddr::NULL,
             heap: (VirtAddr::NULL, 0),
+            framebuffer: FramebufferInfoAddr::default(),
         }
     }
 }

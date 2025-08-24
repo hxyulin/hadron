@@ -22,6 +22,7 @@ pub mod arch;
 pub mod mm;
 pub mod sync;
 pub mod util;
+pub mod dev;
 
 #[unsafe(no_mangle)]
 pub extern "Rust" fn kernel_main() -> ! {

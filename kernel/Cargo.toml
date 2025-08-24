@@ -19,11 +19,20 @@ lazy_static.workspace = true
 limine.workspace = true
 spin.workspace = true
 no-alloc.workspace = true
+volatile.workspace = true
 
 # Only Utility External Dependencies
 bitflags = { workspace = true, features = ["bytemuck"] }
 bytemuck = "1.23.2"
 static_assertions = { workspace = true, features = ["nightly"] }
+
+linked_list_allocator = "0.10.5"
+noto-sans-mono-bitmap = { version = "0.3.1", default-features = false, features = [
+    "regular",
+    "size_16",
+    "unicode-basic-latin",
+    "unicode-specials",
+] }
 
 [dev-dependencies]
 hadron-test.workspace = true
