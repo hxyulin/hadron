@@ -1,5 +1,5 @@
 #![no_std]
-#![no_main]
+#![cfg_attr(not(feature = "test"), no_main)]
 #![feature(
     allocator_api,
     custom_test_frameworks,
@@ -8,25 +8,34 @@
     const_trait_impl,
     macro_metavar_expr_concat,
     const_default,
-    vec_push_within_capacity,
+    vec_push_within_capacity
 )]
-#![reexport_test_harness_main = "test_main"]
-#![test_runner(crate::tests::test_runner)]
+#![cfg_attr(not(feature = "test"), reexport_test_harness_main = "test_main")]
+#![cfg_attr(not(feature = "test"), test_runner(crate::tests::test_runner))]
 
 extern crate alloc;
 
 mod boot;
 
+#[cfg(target_arch = "x86_64")]
 pub use boot::limine::entry as kernel_entry;
+#[cfg(not(target_arch = "x86_64"))]
+pub fn kernel_entry() -> ! {
+    loop {}
+}
+
+#[cfg(feature = "test")]
+extern crate std;
+
 pub mod arch;
+pub mod dev;
 pub mod mm;
 pub mod sync;
 pub mod util;
-pub mod dev;
 
 #[unsafe(no_mangle)]
 pub extern "Rust" fn kernel_main() -> ! {
-    #[cfg(test)]
+    #[cfg(all(test, not(feature = "test")))]
     {
         test_main();
         hadron_test::exit_qemu(hadron_test::ExitCode::Success);

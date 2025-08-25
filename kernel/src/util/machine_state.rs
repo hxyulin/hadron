@@ -1,7 +1,6 @@
 use core::fmt::Display;
 
-use crate::arch::x86_64::core::idt::InterruptStackFrame;
-
+#[cfg(target_arch = "x86_64")]
 #[derive(Debug)]
 pub struct MachineState {
     pub rax: u64,
@@ -42,6 +41,9 @@ pub struct MachineState {
     pub efer: u64,
 }
 
+#[cfg(target_arch = "aarch64")]
+pub struct MachineState {}
+
 impl MachineState {
     #[inline(always)]
     pub fn here() -> Self {
@@ -49,8 +51,11 @@ impl MachineState {
         //let rip = x86_64::registers::read_rip().as_u64();
         //Self::with_rip(rip)
     }
+}
 
-    pub fn from_stack_frame(stack_frame: &InterruptStackFrame) -> Self {
+#[cfg(target_arch = "x86_64")]
+impl MachineState {
+    pub fn from_stack_frame(stack_frame: &crate::arch::x86_64::core::idt::InterruptStackFrame) -> Self {
         let rip = stack_frame.instruction_pointer.as_u64();
         let mut state = Self::with_rip(rip);
         // Because we might have switched to a different stack, we need to
@@ -144,28 +149,31 @@ impl MachineState {
 
 impl Display for MachineState {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        writeln!(f, "rsp:   0x{:016X}    rbp:   0x{:016X}", self.rsp, self.rbp,)?;
-        writeln!(f, "rax:   0x{:016X}    rbx:   0x{:016X}", self.rax, self.rbx,)?;
-        writeln!(f, "rcx:   0x{:016X}    rdx:   0x{:016X}", self.rcx, self.rdx,)?;
-        writeln!(f, "rdi:   0x{:016X}    rsi:   0x{:016X}", self.rdi, self.rsi,)?;
-        writeln!(f, "r8:    0x{:016X}    r9:    0x{:016X}", self.r8, self.r9,)?;
-        writeln!(f, "r10:   0x{:016X}    r11:   0x{:016X}", self.r10, self.r11,)?;
-        writeln!(f, "r12:   0x{:016X}    r13:   0x{:016X}", self.r12, self.r13,)?;
-        writeln!(f, "r14:   0x{:016X}    r15:   0x{:016X}", self.r14, self.r15,)?;
-        writeln!(f, "rip:   0x{:016X}    rflags:0x{:016X}", self.rip, self.rflags,)?;
-        writeln!(
-            f,
-            "cs:    0x{:04X}    ss:    0x{:04X}    ds:    0x{:04X}",
-            self.cs, self.ss, self.ds
-        )?;
-        writeln!(
-            f,
-            "es:    0x{:04X}    fs:    0x{:04X}    gs:    0x{:04X}",
-            self.es, self.fs, self.gs
-        )?;
-        writeln!(f, "cr0:   0x{:016X}    cr2:   0x{:016X}", self.cr0, self.cr2)?;
-        writeln!(f, "cr3:   0x{:016X}    cr4:   0x{:016X}", self.cr3, self.cr4)?;
-        writeln!(f, "efer:  0x{:016X}", self.efer)?;
+        #[cfg(target_arch = "x86_64")]
+        {
+            writeln!(f, "rsp:   0x{:016X}    rbp:   0x{:016X}", self.rsp, self.rbp,)?;
+            writeln!(f, "rax:   0x{:016X}    rbx:   0x{:016X}", self.rax, self.rbx,)?;
+            writeln!(f, "rcx:   0x{:016X}    rdx:   0x{:016X}", self.rcx, self.rdx,)?;
+            writeln!(f, "rdi:   0x{:016X}    rsi:   0x{:016X}", self.rdi, self.rsi,)?;
+            writeln!(f, "r8:    0x{:016X}    r9:    0x{:016X}", self.r8, self.r9,)?;
+            writeln!(f, "r10:   0x{:016X}    r11:   0x{:016X}", self.r10, self.r11,)?;
+            writeln!(f, "r12:   0x{:016X}    r13:   0x{:016X}", self.r12, self.r13,)?;
+            writeln!(f, "r14:   0x{:016X}    r15:   0x{:016X}", self.r14, self.r15,)?;
+            writeln!(f, "rip:   0x{:016X}    rflags:0x{:016X}", self.rip, self.rflags,)?;
+            writeln!(
+                f,
+                "cs:    0x{:04X}    ss:    0x{:04X}    ds:    0x{:04X}",
+                self.cs, self.ss, self.ds
+            )?;
+            writeln!(
+                f,
+                "es:    0x{:04X}    fs:    0x{:04X}    gs:    0x{:04X}",
+                self.es, self.fs, self.gs
+            )?;
+            writeln!(f, "cr0:   0x{:016X}    cr2:   0x{:016X}", self.cr0, self.cr2)?;
+            writeln!(f, "cr3:   0x{:016X}    cr4:   0x{:016X}", self.cr3, self.cr4)?;
+            writeln!(f, "efer:  0x{:016X}", self.efer)?;
+        }
 
         Ok(())
     }

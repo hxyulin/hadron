@@ -1,9 +1,9 @@
 #[cfg(target_arch = "x86_64")]
 pub mod limine;
 
+mod frame_allocator;
 mod info;
 mod memory_map;
-mod frame_allocator;
 mod page_table;
 
 /// The Main Kernel Entry Function

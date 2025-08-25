@@ -51,9 +51,7 @@ pub struct ES;
 pub struct FS;
 pub struct GS;
 
-pub trait Segment {
-
-}
+pub trait Segment {}
 
 impl CS {
     #[inline]

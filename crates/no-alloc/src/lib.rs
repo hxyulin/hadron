@@ -2,5 +2,5 @@
 
 #![no_std]
 
-pub mod vec;
 pub mod ringbuf;
+pub mod vec;

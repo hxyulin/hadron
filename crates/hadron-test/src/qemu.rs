@@ -6,16 +6,19 @@ pub enum ExitCode {
 }
 
 pub fn exit_qemu(exit_code: ExitCode) {
+    #[cfg(target_arch = "x86_64")]
     unsafe {
         let mut port = Port::new(0xf4);
         port.write(exit_code as u32);
     }
 }
 
+#[cfg(target_arch = "x86_64")]
 struct Port {
     port: u16,
 }
 
+#[cfg(target_arch = "x86_64")]
 impl Port {
     pub const fn new(port: u16) -> Self {
         Self { port }

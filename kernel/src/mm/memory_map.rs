@@ -1,6 +1,12 @@
 use alloc::vec::Vec;
 
-use crate::{arch::PhysAddr, mm::{allocator::{bump::BumpAllocator, SharedLock}, paging::{PageSize, Size4KiB}}};
+use crate::{
+    arch::PhysAddr,
+    mm::{
+        allocator::{SharedLock, bump::BumpAllocator},
+        paging::{PageSize, Size4KiB},
+    },
+};
 
 #[derive(Debug)]
 pub struct MemoryMap {

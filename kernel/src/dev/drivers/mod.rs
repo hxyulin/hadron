@@ -9,8 +9,6 @@ pub struct DriverCapabilities {
 
 impl const Default for DriverCapabilities {
     fn default() -> Self {
-        Self {
-            console: None,
-        }
+        Self { console: None }
     }
 }

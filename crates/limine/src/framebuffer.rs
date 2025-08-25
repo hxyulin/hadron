@@ -181,10 +181,7 @@ pub struct FramebufferList<'a> {
 impl<'a> FramebufferList<'a> {
     /// Creates a new `FramebufferIter` from a slice of framebuffer pointers.
     pub(crate) fn new(revision: u64, framebuffers: &'a [NonNull<RawFramebuffer>]) -> Self {
-        Self {
-            revision,
-            framebuffers,
-        }
+        Self { revision, framebuffers }
     }
 
     pub fn len(&self) -> usize {

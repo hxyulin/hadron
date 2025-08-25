@@ -61,7 +61,7 @@ impl const Default for FramebufferInfoAddr {
 }
 
 #[used]
-#[unsafe(link_section = ".platform_drivers")]
+#[cfg_attr(target_arch = "x86_64", unsafe(link_section = ".platform_drivers"))]
 static FB_DRV: PlatformDrv = PlatformDrv {
     name: "Framebuffer",
     vtable: PlatformDrvVTable { probe, attach },

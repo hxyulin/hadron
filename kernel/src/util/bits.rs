@@ -52,11 +52,11 @@ impl_bit_helper!(u32, i32, 32);
 impl_bit_helper!(u64, i64, 64);
 impl_bit_helper!(u128, i128, 64);
 
-#[cfg(test)]
+#[cfg(all(test, feature = "test"))]
 mod tests {
     use crate::util::bits::BitHelper;
 
-    #[test_case]
+    #[test]
     fn bithelper_u8_set_bit() {
         let mut val = 0u8;
         val.set_bit(2, true);
@@ -69,7 +69,7 @@ mod tests {
         assert_eq!(val, 0b1000_0001);
     }
 
-    #[test_case]
+    #[test]
     fn bithelper_u8_set_bits() {
         let mut val = 0u8;
         val.set_bits(2..4, 0b11); // value 3
@@ -88,7 +88,7 @@ mod tests {
         assert_eq!(val_full, 0x00);
     }
 
-    #[test_case]
+    #[test]
     fn bithelper_u8_get_bit() {
         let val = 0b1001_0110u8;
         assert_eq!(val.get_bit(0), false);
@@ -96,7 +96,7 @@ mod tests {
         assert_eq!(val.get_bit(7), true);
     }
 
-    #[test_case]
+    #[test]
     fn bithelper_u8_get_bits() {
         let val = 0b1111_0011u8;
         assert_eq!(val.get_bits(0..2), 0b11);
@@ -105,7 +105,7 @@ mod tests {
     }
 
     // --- U16 Tests ---
-    #[test_case]
+    #[test]
     fn bithelper_u16_set_bit() {
         let mut val = 0u16;
         val.set_bit(7, true);
@@ -116,7 +116,7 @@ mod tests {
         assert_eq!(val, 0b1000_0000_0000_0000); // 32768
     }
 
-    #[test_case]
+    #[test]
     fn bithelper_u16_set_bits() {
         let mut val = 0u16;
         val.set_bits(0..4, 0b1111); // Low nibble
@@ -134,7 +134,7 @@ mod tests {
         assert_eq!(val, 0x0000);
     }
 
-    #[test_case]
+    #[test]
     fn bithelper_u16_get_bit() {
         let val = 0b1010_1010_0101_0101u16;
         assert_eq!(val.get_bit(0), true);
@@ -143,7 +143,7 @@ mod tests {
         assert_eq!(val.get_bit(15), true);
     }
 
-    #[test_case]
+    #[test]
     fn bithelper_u16_get_bits() {
         let val = 0b1010_1010_0101_0101u16;
         assert_eq!(val.get_bits(0..4), 0b0101); // LSB nibble
@@ -153,7 +153,7 @@ mod tests {
     }
 
     // --- U32 Tests ---
-    #[test_case]
+    #[test]
     fn bithelper_u32_set_bit() {
         let mut val = 0u32;
         val.set_bit(10, true);
@@ -164,7 +164,7 @@ mod tests {
         assert_eq!(val, 1 << 31);
     }
 
-    #[test_case]
+    #[test]
     fn bithelper_u32_set_bits() {
         let mut val = 0u32;
         val.set_bits(0..8, 0xAB); // Low byte
@@ -182,7 +182,7 @@ mod tests {
         assert_eq!(val, 0x00000000);
     }
 
-    #[test_case]
+    #[test]
     fn bithelper_u32_get_bit() {
         let val = 0b10101010_01010101_11001100_00110011u32;
         assert_eq!(val.get_bit(0), true);
@@ -191,7 +191,7 @@ mod tests {
         assert_eq!(val.get_bit(31), true);
     }
 
-    #[test_case]
+    #[test]
     fn bithelper_u32_get_bits() {
         let val = 0xDEADBEEFu32;
         assert_eq!(val.get_bits(0..8), 0xEF); // Low byte
@@ -202,7 +202,7 @@ mod tests {
     }
 
     // --- U64 Tests ---
-    #[test_case]
+    #[test]
     fn bithelper_u64_set_bit() {
         let mut val = 0u64;
         val.set_bit(30, true);
@@ -213,7 +213,7 @@ mod tests {
         assert_eq!(val, 1 << 63);
     }
 
-    #[test_case]
+    #[test]
     fn bithelper_u64_set_bits() {
         let mut val = 0u64;
         val.set_bits(0..16, 0xAABB); // Low word
@@ -231,7 +231,7 @@ mod tests {
         assert_eq!(val, 0x0000000000000000);
     }
 
-    #[test_case]
+    #[test]
     fn bithelper_u64_get_bit() {
         let val = 0x1122334455667788u64;
         assert_eq!(val.get_bit(0), false); // 8 is 1000
@@ -240,7 +240,7 @@ mod tests {
         assert_eq!(val.get_bit(63), false); // 1 is 0001
     }
 
-    #[test_case]
+    #[test]
     fn bithelper_u64_get_bits() {
         let val = 0x123456789ABCDEF0u64;
         assert_eq!(val.get_bits(0..8), 0xF0); // 0th byte

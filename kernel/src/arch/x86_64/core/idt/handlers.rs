@@ -16,9 +16,17 @@ pub(super) extern "x86-interrupt" fn breakpoint(stack_frame: InterruptStackFrame
 
 pub(super) extern "x86-interrupt" fn double_fault(stack_frame: InterruptStackFrame, err_code: u64) -> ! {
     let state = MachineState::from_stack_frame(&stack_frame);
-    panic!("ABORT: DOUBLE_FAULT\nerror_code: {}\nstack frame: {:#?}\nstate: {}", err_code, stack_frame, state);
+    panic!(
+        "ABORT: DOUBLE_FAULT\nerror_code: {}\nstack frame: {:#?}\nstate: {}",
+        err_code, stack_frame, state
+    );
 }
 
 pub(super) extern "x86-interrupt" fn page_fault(stack_frame: InterruptStackFrame, err_code: u64) {
-    panic!("TRAP: PAGE_FAULT\nstack frame: {:#?}\nerr_code = {}\nat: {:#x}", stack_frame, err_code, Cr2::read());
+    panic!(
+        "TRAP: PAGE_FAULT\nstack frame: {:#?}\nerr_code = {}\nat: {:#x}",
+        stack_frame,
+        err_code,
+        Cr2::read()
+    );
 }

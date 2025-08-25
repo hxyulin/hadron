@@ -6,6 +6,7 @@ use crate::kprintln;
 
 static ALT_PANIC_HANDLER: Mutex<Option<fn(&PanicInfo) -> !>> = Mutex::new(None);
 
+#[cfg(not(feature = "test"))]
 #[panic_handler]
 fn kernel_panic(info: &PanicInfo) -> ! {
     if let Some(handler) = *ALT_PANIC_HANDLER.lock() {

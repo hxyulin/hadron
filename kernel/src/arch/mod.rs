@@ -2,7 +2,7 @@
 pub mod x86_64;
 
 mod addr;
-pub use addr::{VirtAddr, PhysAddr};
+pub use addr::{PhysAddr, VirtAddr};
 
 pub mod instructions;
 pub mod registers;

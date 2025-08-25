@@ -3,8 +3,10 @@ use core::{
     ops::{Index, IndexMut},
 };
 
+#[cfg(target_arch = "x86_64")]
+use crate::arch::instructions::invlpg;
 use crate::{
-    arch::{PhysAddr, VirtAddr, instructions::invlpg},
+    arch::{PhysAddr, VirtAddr},
     kprintln,
     mm::{
         mappings,
@@ -97,15 +99,18 @@ pub struct KernelPageTable {
 impl KernelPageTable {
     pub const DIRECT_MAP_START: VirtAddr = mappings::PAGE_TABLE_START;
     pub const DIRECT_MAP_OFFSET: usize = Self::DIRECT_MAP_START.as_usize();
-    const PAGE_TABLE_FLAGS: PageTableFlags = PageTableFlags::from_bits_truncate(
-        PageTableFlags::PRESENT.bits() | PageTableFlags::WRITABLE.bits() | PageTableFlags::NO_EXECUTE.bits(),
-    );
-
     pub fn new(pml4: PhysAddr) -> Self {
         Self {
             pml4: Self::DIRECT_MAP_START + pml4.as_usize(),
         }
     }
+}
+
+#[cfg(target_arch = "x86_64")]
+impl KernelPageTable {
+    const PAGE_TABLE_FLAGS: PageTableFlags = PageTableFlags::from_bits_truncate(
+        PageTableFlags::PRESENT.bits() | PageTableFlags::WRITABLE.bits() | PageTableFlags::NO_EXECUTE.bits(),
+    );
 
     fn to_pt<'a>(addr: VirtAddr) -> &'a PageTable {
         unsafe { addr.as_ptr::<PageTable>().as_ref().expect("pml4 is null!") }
@@ -131,7 +136,14 @@ impl KernelPageTable {
         let frame = alloc.allocate_frame().expect("no frames to allocate");
         let virt = Self::DIRECT_MAP_START + frame.start_address().as_usize();
         entry.set_frame(frame, Self::PAGE_TABLE_FLAGS);
-        unsafe { self.map_with_allocator(Page::<Size4KiB>::from_start_address(virt), frame, Self::PAGE_TABLE_FLAGS, alloc) };
+        unsafe {
+            self.map_with_allocator(
+                Page::<Size4KiB>::from_start_address(virt),
+                frame,
+                Self::PAGE_TABLE_FLAGS,
+                alloc,
+            )
+        };
         unsafe {
             invlpg(virt);
         }
@@ -253,7 +265,7 @@ impl KernelPageTable {
 
 impl fmt::Debug for KernelPageTable {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("KernelPageTable").field("pml4", self.pml4());
+        // TODO: Implement
         Ok(())
     }
 }
@@ -317,9 +329,12 @@ impl Mapper<Size4KiB> for KernelPageTable {
         flags: PageTableFlags,
         frame_alloc: &mut impl FrameAllocator<Size4KiB>,
     ) {
-        let addr = page.start_address();
-        let pt = self.get_or_create_pt(addr.p4_index(), addr.p3_index(), addr.p2_index(), frame_alloc);
-        pt[addr.p1_index()].set_frame(frame, flags);
+        #[cfg(target_arch = "x86_64")]
+        {
+            let addr = page.start_address();
+            let pt = self.get_or_create_pt(addr.p4_index(), addr.p3_index(), addr.p2_index(), frame_alloc);
+            pt[addr.p1_index()].set_frame(frame, flags);
+        }
     }
 
     unsafe fn unmap(&mut self, page: Page<Size4KiB>) {
@@ -331,6 +346,7 @@ pub struct Flush {
     addr: VirtAddr,
 }
 
+#[cfg(target_arch = "x86_64")]
 impl Flush {
     pub fn flush(self) {
         // SAFETY: The address is a valid and mapped page

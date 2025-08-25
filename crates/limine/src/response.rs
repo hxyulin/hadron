@@ -115,9 +115,7 @@ impl FramebufferResponse {
     /// Returns the framebuffer pointers.
     fn framebuffer_ptrs(&self) -> &[NonNull<RawFramebuffer>] {
         // SAFETY: The framebuffers pointer is valid because it is a pointer to an array of pointers.
-        unsafe {
-            core::slice::from_raw_parts(self.framebuffers.as_ptr(), self.framebuffer_count as usize)
-        }
+        unsafe { core::slice::from_raw_parts(self.framebuffers.as_ptr(), self.framebuffer_count as usize) }
     }
 
     /// Returns the number of framebuffers.
@@ -153,11 +151,7 @@ pub struct MemoryMapResponse {
 
 impl MemoryMapResponse {
     #[cfg(feature = "internal-api")]
-    pub fn internal_new(
-        revision: u64,
-        memory_map_entries: u64,
-        memory_map: NonNull<NonNull<MemoryMapEntry>>,
-    ) -> Self {
+    pub fn internal_new(revision: u64, memory_map_entries: u64, memory_map: NonNull<NonNull<MemoryMapEntry>>) -> Self {
         Self {
             revision,
             memory_map_entries,
@@ -172,9 +166,7 @@ impl MemoryMapResponse {
 
     /// Returns an iterator over the memory map entries.
     pub fn entries(&self) -> MemoryMapIter<'_> {
-        MemoryMapIter::new(unsafe {
-            core::slice::from_raw_parts(self.memory_map.as_ptr(), self.count())
-        })
+        MemoryMapIter::new(unsafe { core::slice::from_raw_parts(self.memory_map.as_ptr(), self.count()) })
     }
 }
 

@@ -1,6 +1,8 @@
 //! Types for representing files.
 use core::{
-    ffi::{c_char, CStr}, num::NonZeroU32, ptr::NonNull
+    ffi::{CStr, c_char},
+    num::NonZeroU32,
+    ptr::NonNull,
 };
 
 /// A file that is passed to the kernel.

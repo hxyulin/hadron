@@ -72,7 +72,12 @@ pub struct PlatformDevMatcher {
 impl PlatformDevMatcher {
     pub fn matches(&self, dev: &PlatformDev) -> bool {
         // FIXME: For now, we only check IO_Port
-        self.name == dev.name && self.addr.as_ref().map(|addr| unsafe { addr.io_port == dev.addr.io_port }).unwrap_or(true)
+        self.name == dev.name
+            && self
+                .addr
+                .as_ref()
+                .map(|addr| unsafe { addr.io_port == dev.addr.io_port })
+                .unwrap_or(true)
     }
 }
 

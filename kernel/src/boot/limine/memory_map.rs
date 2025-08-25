@@ -1,7 +1,5 @@
-use core::ops::{Index, IndexMut};
-
 use crate::{
-    arch::{VirtAddr, PhysAddr},
+    arch::{PhysAddr, VirtAddr},
     boot::memory_map::{BootstrapMemoryMap, MemoryMapEntry, MemoryRegionType},
     mm::paging::{PageSize, Size4KiB},
 };
@@ -56,9 +54,12 @@ impl BootstrapMemoryMap {
             .clone()
             .find(|e| e.ty == MemoryMapEntryType::Usable && e.base <= HHDM_END && e.length >= required_size)
             .expect("memory map: requires a memory region that is long enough to hold the memory map");
-        self.entries
-            .allocator()
-            .call(|alloc| alloc.init(VirtAddr::new(region.base as usize + hhdm_offset), region.length as usize));
+        self.entries.allocator().call(|alloc| {
+            alloc.init(
+                VirtAddr::new(region.base as usize + hhdm_offset),
+                region.length as usize,
+            )
+        });
         self.entries.reserve(limine_entries.len());
 
         for entry in limine_entries {
@@ -75,19 +76,5 @@ impl BootstrapMemoryMap {
             }
             self.entries.push(entry);
         }
-    }
-}
-
-impl Index<usize> for BootstrapMemoryMap {
-    type Output = MemoryMapEntry;
-
-    fn index(&self, index: usize) -> &Self::Output {
-        &self.entries[index]
-    }
-}
-
-impl IndexMut<usize> for BootstrapMemoryMap {
-    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
-        &mut self.entries[index]
     }
 }

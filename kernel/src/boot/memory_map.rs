@@ -1,3 +1,5 @@
+use core::ops::{Index, IndexMut};
+
 use crate::{
     arch::{PhysAddr, VirtAddr},
     boot::frame_allocator::BootstrapFrameAllocator,
@@ -271,5 +273,19 @@ impl TryInto<MemoryRegionTag> for MemoryRegionType {
             MemoryRegionType::AcpiNvs => Ok(MemoryRegionTag::AcpiNvs),
             _ => Err(()),
         }
+    }
+}
+
+impl Index<usize> for BootstrapMemoryMap {
+    type Output = MemoryMapEntry;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.entries[index]
+    }
+}
+
+impl IndexMut<usize> for BootstrapMemoryMap {
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        &mut self.entries[index]
     }
 }

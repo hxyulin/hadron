@@ -1,5 +1,9 @@
-use crate::{arch::{PhysAddr, VirtAddr}, boot::memory_map::BootstrapMemoryMap, sync::cell::RacyCell};
 use crate::dev::drivers::platform::fb::FramebufferInfoAddr;
+use crate::{
+    arch::{PhysAddr, VirtAddr},
+    boot::memory_map::BootstrapMemoryMap,
+    sync::cell::RacyCell,
+};
 
 pub struct BootInfo {
     pub hhdm_offset: u64,

@@ -5,11 +5,10 @@ use core::ptr::NonNull;
 use crate::{
     module::InternalModule,
     response::{
-        BootTimeResponse, BootloaderInfoResponse, EfiMemoryMapResponse, EfiSystemTableResponse,
-        EntryPointResponse, ExecutableAddressResponse, ExecutableFileResponse,
-        FirmwareTypeResponse, FramebufferResponse, HhdmResponse, MemoryMapResponse, ModuleResponse,
-        MultiprocessorResponse, PagingModeResponse, Response, RsdpResponse, SmBiosResponse,
-        StackSizeResponse,
+        BootTimeResponse, BootloaderInfoResponse, EfiMemoryMapResponse, EfiSystemTableResponse, EntryPointResponse,
+        ExecutableAddressResponse, ExecutableFileResponse, FirmwareTypeResponse, FramebufferResponse, HhdmResponse,
+        MemoryMapResponse, ModuleResponse, MultiprocessorResponse, PagingModeResponse, Response, RsdpResponse,
+        SmBiosResponse, StackSizeResponse,
     },
 };
 

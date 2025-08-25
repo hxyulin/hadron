@@ -116,7 +116,7 @@ where
     }
 }
 
-#[global_allocator]
+#[cfg_attr(not(feature = "test"), global_allocator)]
 pub static ALLOCATOR: KernelAllocator = KernelAllocator::new();
 
 pub struct KernelAllocator {

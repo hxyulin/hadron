@@ -4,7 +4,10 @@ use alloc::boxed::Box;
 
 use crate::{
     arch::{
-        instructions::interrupts, registers::control::Cr3, x86_64::{cpu::cpu_info, io::uart::Uart16550}, PhysAddr, VirtAddr
+        PhysAddr, VirtAddr,
+        instructions::interrupts,
+        registers::control::Cr3,
+        x86_64::{cpu::cpu_info, io::uart::Uart16550},
     },
     boot::{
         frame_allocator::BootstrapFrameAllocator,
@@ -15,7 +18,7 @@ use crate::{
     dev::drivers::platform::fb::FramebufferInfoAddr,
     kprintln,
     mm::{
-        allocator::{bump::BumpAllocator, Locked},
+        allocator::{Locked, bump::BumpAllocator},
         mappings,
         memory_map::MemoryMap,
         page_table::{KernelPageTable, PageTableFlags},
@@ -25,6 +28,7 @@ use crate::{
     util::panicking::set_alternate_panic_handler,
 };
 
+mod frame_allocator;
 mod memory_map;
 mod request;
 
@@ -311,11 +315,18 @@ fn allocate_pages() -> ! {
                 start += i * Size4KiB::SIZE;
             }
 
+            /*
             for i in 0..region.f_pad_2mib {
                 let virt = KernelPageTable::DIRECT_MAP_START + start.as_usize();
-                page_table.map(virt, PhysFrame::<Size2MiB>::from_start_address(start), flags, &mut frame_allocator);
+                page_table.map(
+                    virt,
+                    PhysFrame::<Size2MiB>::from_start_address(start),
+                    flags,
+                    &mut frame_allocator,
+                );
                 start += i * Size4KiB::SIZE;
             }
+            */
         }
     }
 

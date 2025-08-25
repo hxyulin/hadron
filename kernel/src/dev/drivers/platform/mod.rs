@@ -1,12 +1,11 @@
-use crate::{
-    dev::{
-        drivers::DriverCapabilities,
-        platform::{PlatformDev, PlatformDevMatcher},
-    },
+use crate::dev::{
+    drivers::DriverCapabilities,
+    platform::{PlatformDev, PlatformDevMatcher},
 };
 
-pub mod serial;
 pub mod fb;
+#[cfg(target_arch = "x86_64")]
+pub mod serial;
 
 #[repr(C)]
 #[derive(Debug)]

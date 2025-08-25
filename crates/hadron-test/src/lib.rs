@@ -3,16 +3,18 @@
 
 pub mod ansi;
 mod qemu;
-mod serial;
 pub use qemu::{ExitCode, exit_qemu};
-use serial::SerialPort;
+#[cfg(target_arch = "x86_64")]
+mod serial;
 
+#[cfg(target_arch = "x86_64")]
 lazy_static::lazy_static! {
-    static ref SERIAL_PORT: spin::Mutex<SerialPort> = spin::Mutex::new(unsafe { SerialPort::new(0x3F8) });
+    static ref SERIAL_PORT: spin::Mutex<serial::SerialPort> = spin::Mutex::new(unsafe { serial::SerialPort::new(0x3F8) });
 }
 
 pub fn write_fmt(args: core::fmt::Arguments) {
     use core::fmt::Write;
+    #[cfg(target_arch = "x86_64")]
     SERIAL_PORT.lock().write_fmt(args).unwrap();
 }
 

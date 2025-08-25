@@ -121,11 +121,11 @@ pub trait FrameDeallocator<S: PageSize> {
     unsafe fn deallocate_frame(&mut self, frame: PhysFrame);
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "test"))]
 mod tests {
     use super::*;
 
-    #[test_case]
+    #[test]
     fn page_from_start_addr() {
         let aligned = Page::<Size4KiB>::try_from_start_address(VirtAddr::new(0x0000));
         assert!(aligned.is_ok());
@@ -133,7 +133,7 @@ mod tests {
         assert!(unaligned.is_err());
     }
 
-    #[test_case]
+    #[test]
     fn page_containing() {
         let page1 = Page::<Size4KiB>::containing_address(VirtAddr::new(0x0000));
         assert_eq!(page1.start_address(), VirtAddr::new(0x0000));
