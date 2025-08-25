@@ -2,6 +2,7 @@ use core::ptr::NonNull;
 
 use crate::{arch::VirtAddr, mm::allocator::MutAllocator};
 
+#[derive(Debug)]
 pub struct BumpAllocator {
     base: VirtAddr,
     len: usize,

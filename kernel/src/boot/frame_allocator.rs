@@ -87,7 +87,7 @@ impl<'a> BootstrapFrameAllocator<'a> {
     }
 }
 
-impl FrameAllocator<Size4KiB> for BootstrapFrameAllocator<'_> {
+unsafe impl FrameAllocator<Size4KiB> for BootstrapFrameAllocator<'_> {
     fn allocate_frame(&mut self) -> Option<PhysFrame<Size4KiB>> {
         let mut i = 0;
         while i < self.memory_map.len() {
@@ -95,6 +95,7 @@ impl FrameAllocator<Size4KiB> for BootstrapFrameAllocator<'_> {
 
             if region.ty() == MemoryRegionType::Usable && region.length() >= Size4KiB::SIZE {
                 let frame_addr = region.base();
+
 
                 // Adjust the existing region instead of creating a new one
                 region.base = frame_addr + Size4KiB::SIZE;

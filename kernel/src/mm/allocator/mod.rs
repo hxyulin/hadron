@@ -1,4 +1,5 @@
-use core::{alloc::GlobalAlloc, ops::DerefMut, ptr::NonNull};
+use alloc::{alloc::Allocator, sync::Arc};
+use core::{alloc::GlobalAlloc, fmt::Debug, ops::DerefMut, ptr::NonNull};
 use spin::{Mutex, MutexGuard};
 
 use crate::mm::allocator::linked_list::LinkedListAllocator;
@@ -7,8 +8,16 @@ pub mod bump;
 pub mod linked_list;
 pub mod no_alloc;
 
+pub type SharedLock<T> = Shared<Locked<T>>;
+
 pub struct Locked<T> {
     alloc: Mutex<T>,
+}
+
+impl<T: Debug> Debug for Locked<T> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        Debug::fmt(&self.alloc, f)
+    }
 }
 
 impl<T> Locked<T> {
@@ -28,6 +37,46 @@ impl<T> Locked<T> {
 
     pub fn lock(&self) -> MutexGuard<'_, T> {
         self.alloc.lock()
+    }
+}
+
+pub struct Shared<T: Allocator> {
+    alloc: Arc<T>,
+}
+
+impl<T: Allocator> Clone for Shared<T> {
+    fn clone(&self) -> Self {
+        Self {
+            alloc: self.alloc.clone(),
+        }
+    }
+}
+
+impl<T: Debug + Allocator> Debug for Shared<T> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        Debug::fmt(&self.alloc, f)
+    }
+}
+
+impl<T> Shared<T>
+where
+    T: Allocator,
+{
+    pub fn new(alloc: T) -> Self {
+        Self { alloc: Arc::new(alloc) }
+    }
+}
+
+unsafe impl<T> Allocator for Shared<T>
+where
+    T: Allocator,
+{
+    fn allocate(&self, layout: core::alloc::Layout) -> Result<NonNull<[u8]>, alloc::alloc::AllocError> {
+        self.alloc.allocate(layout)
+    }
+
+    unsafe fn deallocate(&self, ptr: NonNull<u8>, layout: core::alloc::Layout) {
+        unsafe { self.alloc.deallocate(ptr, layout) };
     }
 }
 

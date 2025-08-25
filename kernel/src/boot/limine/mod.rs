@@ -3,15 +3,23 @@ use core::panic::PanicInfo;
 use alloc::boxed::Box;
 
 use crate::{
-    arch::{PhysAddr, VirtAddr, instructions::interrupts, x86_64::io::uart::Uart16550},
-    boot::{frame_allocator::BootstrapFrameAllocator, info::BOOT_INFO, page_table::BootstrapPageTable},
+    arch::{
+        instructions::interrupts, registers::control::Cr3, x86_64::{cpu::cpu_info, io::uart::Uart16550}, PhysAddr, VirtAddr
+    },
+    boot::{
+        frame_allocator::BootstrapFrameAllocator,
+        info::BOOT_INFO,
+        memory_map::{MainMemoryMap, UsableRegion},
+        page_table::BootstrapPageTable,
+    },
     dev::drivers::platform::fb::FramebufferInfoAddr,
     kprintln,
     mm::{
-        allocator::{Locked, bump::BumpAllocator},
+        allocator::{bump::BumpAllocator, Locked},
         mappings,
-        page_table::PageTableFlags,
-        paging::{FrameAllocator, PageSize, PhysFrame, Size4KiB},
+        memory_map::MemoryMap,
+        page_table::{KernelPageTable, PageTableFlags},
+        paging::{FrameAllocator, PageSize, PhysFrame, Size2MiB, Size4KiB},
     },
     sync::cell::RacyCell,
     util::panicking::set_alternate_panic_handler,
@@ -22,7 +30,7 @@ mod request;
 
 static SERIAL: RacyCell<Option<Uart16550>> = RacyCell::new(None);
 
-fn debug_write_fmt(args: core::fmt::Arguments) {
+pub fn debug_write_fmt(args: core::fmt::Arguments) {
     use core::fmt::Write;
 
     if let Some(serial) = SERIAL.get_mut() {
@@ -92,6 +100,8 @@ unsafe fn init_core() {
         crate::arch::x86_64::core::gdt::init();
         boot_println!("info: initializing IDT...");
         crate::arch::x86_64::core::idt::init();
+        boot_println!("info: getting CPU info...");
+        crate::arch::x86_64::cpu::init();
     }
 }
 
@@ -122,6 +132,7 @@ unsafe fn populate_boot_info() {
             boot_info
                 .memory_map
                 .parse_from_limine(&memory_map, boot_info.hhdm_offset as usize);
+            boot_println!("memory_map: {:#?}", boot_info.memory_map);
         }
         None => panic!("bootloader did not send memory map response"),
     }
@@ -188,6 +199,13 @@ fn allocate_pages() -> ! {
         let size = (boot_info.framebuffer.stride as usize) * (boot_info.framebuffer.height as usize);
         pages_to_allocate += calculate_pages_needed(size.div_ceil(Size4KiB::SIZE as usize));
     }
+
+    for region in request::MEMORY_MAP.response().unwrap().entries() {
+        if let Some(region) = UsableRegion::from_region(region) {
+            pages_to_allocate += region.pages_needed();
+        }
+    }
+
     let frame = frame_allocator.allocate_mapped_contiguous(pages_to_allocate).unwrap();
     let allocator = Locked::new(unsafe {
         BumpAllocator::new(
@@ -239,9 +257,10 @@ fn allocate_pages() -> ! {
 
     for i in 0..heap_frames {
         let offset = i * Size4KiB::SIZE;
+        let frame = frame_allocator.allocate_frame().unwrap();
         page_table.map(
             mappings::KERNEL_HEAP_START + offset,
-            frame_allocator.allocate_frame().unwrap(),
+            frame,
             PageTableFlags::PRESENT | PageTableFlags::WRITABLE | PageTableFlags::NO_EXECUTE,
             &mut frame_allocator,
         );
@@ -269,17 +288,38 @@ fn allocate_pages() -> ! {
 
         framebuffer.addr = mappings::FRAMEBUFFER_START.as_mut_ptr();
     }
-
     // Allocate memory map
     for i in 0..mmap_frames {
         let offset = i * Size4KiB::SIZE;
         page_table.map(
             mm_start + offset,
-            PhysFrame::from_start_address(PhysAddr::new(mm_start.as_usize() - boot_info.hhdm_offset as usize)),
+            PhysFrame::from_start_address(PhysAddr::new(
+                mm_start.as_usize() - boot_info.hhdm_offset as usize + offset,
+            )),
             PageTableFlags::PRESENT | PageTableFlags::WRITABLE | PageTableFlags::NO_EXECUTE,
             &mut frame_allocator,
         )
     }
+
+    let flags = PageTableFlags::PRESENT | PageTableFlags::WRITABLE | PageTableFlags::NO_EXECUTE;
+    for region in request::MEMORY_MAP.response().unwrap().entries() {
+        if let Some(region) = UsableRegion::from_region(region) {
+            let mut start = region.base;
+            for i in 0..region.f_pad_4kib {
+                let virt = KernelPageTable::DIRECT_MAP_START + start.as_usize();
+                page_table.map(virt, PhysFrame::from_start_address(start), flags, &mut frame_allocator);
+                start += i * Size4KiB::SIZE;
+            }
+
+            for i in 0..region.f_pad_2mib {
+                let virt = KernelPageTable::DIRECT_MAP_START + start.as_usize();
+                page_table.map(virt, PhysFrame::<Size2MiB>::from_start_address(start), flags, &mut frame_allocator);
+                start += i * Size4KiB::SIZE;
+            }
+        }
+    }
+
+    page_table.direct_map(&mut frame_allocator);
 
     let page_table_ptr = page_table.as_phys_addr().as_u64();
 
@@ -343,6 +383,7 @@ fn setup_logger() {
     use crate::util::kprint::ConsoleWriter;
     let mut platform_devs = DEVICES.platform();
 
+    // While the logger is locked, we can't log
     let mut logger = crate::util::kprint::LOGGER.lock();
     for dev in platform_devs.iter() {
         if let Some(drv) = &dev.dev.drv {
@@ -367,6 +408,13 @@ fn stage_2() -> ! {
     setup_logger();
 
     kprintln!(Debug, "Hello World!");
+    kprintln!(Debug, "CPU Info: {:#?}", cpu_info());
+
+    {
+        let boot_info = BOOT_INFO.get_mut();
+        let mut page_table = KernelPageTable::new(Cr3::addr());
+        let mut memory_map = MemoryMap::from_bootstrap(&mut boot_info.memory_map, &mut page_table);
+    }
 
     unsafe extern "Rust" {
         fn kernel_main() -> !;

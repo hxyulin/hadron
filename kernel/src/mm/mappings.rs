@@ -40,5 +40,8 @@ pub const MMIO_SPACE_END: VirtAddr = VirtAddr::new(0xFFFF_F000_8000_0000);
 /// The Size of the MMIO Space (Currently 16 TiB)
 pub const MMIO_SPACE_SIZE: usize = MMIO_SPACE_END.as_usize() - MMIO_SPACE_START.as_usize();
 
+pub const MEMORY_MAPPINGS: VirtAddr = VirtAddr::new(0xFFFF_F800_0000_0000);
+pub const MEMORY_MAPPINGS_SIZE: usize = 0xFFFF_F900_0000_0000 - MEMORY_MAPPINGS.as_usize();
+
 pub const KERNEL_TEXT_START: VirtAddr = VirtAddr::new(0xFFFF_FFFF_8000_0000);
 pub const KERNEL_TEXT_SIZE: usize = 0usize.wrapping_sub(KERNEL_TEXT_START.as_usize());

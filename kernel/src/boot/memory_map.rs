@@ -1,5 +1,16 @@
+use crate::{
+    arch::{PhysAddr, VirtAddr},
+    boot::frame_allocator::BootstrapFrameAllocator,
+    kprintln,
+    mm::{
+        allocator::{Locked, Shared, bump::BumpAllocator},
+        mappings,
+        memory_map::{MemoryMap, MemoryRegion, MemoryRegionTag},
+        page_table::{KernelPageTable, Mapper, PageTableFlags},
+        paging::{FrameAllocator, Page, PageSize, Size2MiB, Size4KiB},
+    },
+};
 use alloc::vec::Vec;
-use crate::{arch::{PhysAddr, VirtAddr}, mm::allocator::{bump::BumpAllocator, Locked}};
 
 #[repr(u64)]
 #[allow(dead_code)]
@@ -24,6 +35,65 @@ pub struct MemoryMapEntry {
     pub(crate) length: usize,
     // We can make the memory type 8bit, and have 56 more for future use
     pub(crate) memory_type: MemoryRegionType,
+}
+
+pub struct UsableRegion {
+    pub base: PhysAddr,
+    pub f_pad_4kib: usize,
+    pub f_pad_2mib: usize,
+    pub mid_1gib: usize,
+    pub b_pad_2mib: usize,
+    pub b_pad_4kib: usize,
+}
+
+impl Default for UsableRegion {
+    fn default() -> Self {
+        Self {
+            base: PhysAddr::NULL,
+            f_pad_4kib: 0,
+            f_pad_2mib: 0,
+            mid_1gib: 0,
+            b_pad_2mib: 0,
+            b_pad_4kib: 0,
+        }
+    }
+}
+
+impl UsableRegion {
+    pub fn from_region(region: &limine::memory_map::MemoryMapEntry) -> Option<Self> {
+        use limine::memory_map::MemoryMapEntryType;
+        if region.ty != MemoryMapEntryType::Usable {
+            return None;
+        }
+
+        let start = PhysAddr::new(region.base as usize);
+        let end = start + (region.length as usize);
+        debug_assert!(start.is_aligned(Size4KiB::SIZE), "memory regions are not aligned!");
+        let aligned_start = start.align_up(Size2MiB::SIZE);
+        if end < (aligned_start + Size2MiB::SIZE) {
+            // We can't fit 2MiB, so it will have to fit 4KiB pages
+            return Some(Self {
+                f_pad_4kib: (end - start) / Size4KiB::SIZE,
+                ..Default::default()
+            });
+        }
+        let f_pad_4kib = (aligned_start - start) / Size4KiB::SIZE;
+        // TODO: 1GiB pages are not yet supported
+        let aligned_end = end.align_down(Size2MiB::SIZE);
+        let f_pad_2mib = (aligned_end - aligned_start) / Size2MiB::SIZE;
+        let b_pad_4kib = (end - aligned_end) / Size4KiB::SIZE;
+        return Some(Self {
+            f_pad_4kib,
+            f_pad_2mib,
+            b_pad_4kib,
+            ..Default::default()
+        });
+    }
+
+    pub fn pages_needed(&self) -> usize {
+        let total = self.f_pad_4kib + self.f_pad_2mib + self.mid_1gib + self.b_pad_2mib + self.b_pad_4kib;
+        3 + total + total.div_ceil(512)
+    }
 }
 
 impl MemoryMapEntry {
@@ -116,10 +186,9 @@ impl BootstrapMemoryMap {
     }
 }
 
-/*
 pub trait MainMemoryMap {
     fn from_bootstrap(memory_map: &mut BootstrapMemoryMap, page_table: &mut KernelPageTable) -> Self;
-    fn push_entry(&mut self, entry: crate::arch::memory_map::MemoryMapEntry);
+    fn push_entry(&mut self, entry: MemoryMapEntry);
 }
 
 impl MainMemoryMap for MemoryMap {
@@ -130,23 +199,24 @@ impl MainMemoryMap for MemoryMap {
     fn from_bootstrap(memory_map: &mut BootstrapMemoryMap, page_table: &mut KernelPageTable) -> Self {
         /// The number of entries we need to reserve for the memory map, for deallocation of the
         /// bootstrap structures
-        const RESERVED_ENTRIES: u64 = 8;
+        const RESERVED_ENTRIES: usize = 8;
         // We need to calculate how much memory we need for the entire memory map
-        let mut required_size = size_of::<MemoryRegion>() as u64 * RESERVED_ENTRIES;
+        let mut required_size = size_of::<MemoryRegion>() * RESERVED_ENTRIES;
         for region in memory_map.iter() {
-            required_size += size_of::<MemoryRegion>() as u64;
+            required_size += size_of::<MemoryRegion>();
             let bitmap_size = region.length.div_ceil(32768);
             // We align it to 64 bytes to be conservative
             required_size += (bitmap_size + 63) & !63;
         }
 
-        let mut frame_allocator = BasicFrameAllocator::new(memory_map);
+        let mut frame_allocator = BootstrapFrameAllocator::new(memory_map);
         let required_frames = required_size.div_ceil(Size4KiB::SIZE);
         for i in 0..required_frames {
             let addr = mappings::MEMORY_MAPPINGS + i * Size4KiB::SIZE;
             unsafe {
+                kprintln!(Debug, "mapping to: {:#x}", addr);
                 page_table.map_with_allocator(
-                    Page::from_start_address(addr).unwrap(),
+                    Page::from_start_address(addr),
                     frame_allocator.allocate_frame().unwrap(),
                     PageTableFlags::PRESENT | PageTableFlags::WRITABLE | PageTableFlags::NO_EXECUTE,
                     &mut frame_allocator,
@@ -154,9 +224,12 @@ impl MainMemoryMap for MemoryMap {
             };
         }
 
-        let alloc = Arc::new(unsafe {
-            FrameBasedAllocator::new(mappings::MEMORY_MAPPINGS, (required_frames * Size4KiB::SIZE) as usize)
-        });
+        let alloc = unsafe {
+            Shared::new(Locked::new(BumpAllocator::new(
+                mappings::MEMORY_MAPPINGS,
+                required_frames * Size4KiB::SIZE,
+            )))
+        };
         let mut entries = Vec::new_in(alloc.clone());
         entries.reserve_exact(memory_map.len());
         for entry in memory_map
@@ -177,7 +250,7 @@ impl MainMemoryMap for MemoryMap {
         }
     }
 
-    fn push_entry(&mut self, entry: crate::arch::memory_map::MemoryMapEntry) {
+    fn push_entry(&mut self, entry: MemoryMapEntry) {
         self.entries.push(MemoryRegion::from_base_and_length(
             entry.base(),
             entry.length(),
@@ -200,4 +273,3 @@ impl TryInto<MemoryRegionTag> for MemoryRegionType {
         }
     }
 }
-*/

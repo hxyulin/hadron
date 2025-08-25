@@ -1,7 +1,23 @@
 use crate::{
-    arch::PhysAddr,
+    arch::{PhysAddr, VirtAddr},
     mm::paging::{PhysFrame, Size4KiB},
 };
+
+pub struct Cr2;
+
+impl Cr2 {
+    pub fn read() -> VirtAddr {
+        let out: usize;
+        unsafe {
+            core::arch::asm!(
+                "mov {}, cr2",
+                out(reg) out,
+                options(nostack, preserves_flags)
+            );
+        }
+        VirtAddr::new(out)
+    }
+}
 
 pub struct Cr3;
 

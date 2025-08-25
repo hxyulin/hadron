@@ -5,8 +5,9 @@ use crate::{
     boot::frame_allocator::BootstrapFrameAllocator,
     mm::{
         allocator::{Locked, bump::BumpAllocator},
-        page_table::{PageTable, PageTableEntry, PageTableFlags},
-        paging::PhysFrame,
+        mappings,
+        page_table::{KernelPageTable, PageTable, PageTableEntry, PageTableFlags},
+        paging::{PhysFrame, Size2MiB},
     },
 };
 
@@ -74,7 +75,7 @@ pub struct BootstrapPageTable<'a> {
     pml4_phys: PhysFrame,
     pdpts: Vec<PdptTable, &'a Locked<BumpAllocator>>,
     pds: Vec<PdTable, &'a Locked<BumpAllocator>>,
-    pt: Vec<PtTable, &'a Locked<BumpAllocator>>,
+    pts: Vec<PtTable, &'a Locked<BumpAllocator>>,
     hhdm_offset: usize,
 }
 
@@ -93,7 +94,7 @@ impl<'a> BootstrapPageTable<'a> {
             pml4_phys,
             pdpts: Vec::new_in(allocator),
             pds: Vec::new_in(allocator),
-            pt: Vec::new_in(allocator),
+            pts: Vec::new_in(allocator),
             hhdm_offset,
         };
 
@@ -147,10 +148,7 @@ impl<'a> BootstrapPageTable<'a> {
             self.pdpts.push(table);
             let page_table = self.get_pml4();
             let mut entry = PageTableEntry::new();
-            entry.set_addr(
-                table.frame.start_address(),
-                PageTableFlags::PRESENT | PageTableFlags::WRITABLE,
-            );
+            entry.set_frame(table.frame, PageTableFlags::PRESENT | PageTableFlags::WRITABLE);
             page_table[pml4_index as usize] = entry;
 
             table
@@ -188,6 +186,7 @@ impl<'a> BootstrapPageTable<'a> {
             let pdpt = self.try_get_pdpt(pml4_index).unwrap();
             let pdpt_table = self.get_table(&pdpt);
             let mut entry = PageTableEntry::new();
+
             entry.set_frame(table.frame, PageTableFlags::PRESENT | PageTableFlags::WRITABLE);
             pdpt_table[pdpt_index as usize] = entry;
 
@@ -196,7 +195,7 @@ impl<'a> BootstrapPageTable<'a> {
     }
 
     fn try_get_pt(&self, pml4_index: usize, pdpt_index: usize, pd_index: usize) -> Option<PtTable> {
-        self.pt.iter().find_map(|p| {
+        self.pts.iter().find_map(|p| {
             if p.pml4_index == pml4_index && p.pdpt_index == pdpt_index && p.pd_index == pd_index {
                 Some(*p)
             } else {
@@ -224,10 +223,11 @@ impl<'a> BootstrapPageTable<'a> {
                 pd_index,
             };
 
-            self.pt.push(table);
+            self.pts.push(table);
             let pd = self.try_get_pd(pml4_index, pdpt_index).unwrap();
             let pd_table = self.get_table(&pd);
             let mut entry = PageTableEntry::new();
+
             entry.set_frame(table.frame, PageTableFlags::PRESENT | PageTableFlags::WRITABLE);
             pd_table[pd_index as usize] = entry;
             table
@@ -252,7 +252,56 @@ impl<'a> BootstrapPageTable<'a> {
 
         let pt_table = self.get_table(&pt);
         let mut entry = PageTableEntry::new();
+
         entry.set_frame(frame, flags);
         pt_table[addr.p1_index()] = entry;
+    }
+
+    pub fn map_2mib(
+        &mut self,
+        addr: VirtAddr,
+        frame: PhysFrame<Size2MiB>,
+        flags: PageTableFlags,
+        frame_allocator: &mut BootstrapFrameAllocator,
+    ) {
+        let pml4_index: usize = addr.p4_index();
+        let _pdpt = self.get_or_create_pdpt(pml4_index, frame_allocator);
+
+        let pdpt_index: usize = addr.p3_index();
+        let pd = self.get_or_create_pd(pml4_index, pdpt_index, frame_allocator);
+
+        let pd_table = self.get_table(&pd);
+        let mut entry = PageTableEntry::new();
+
+        entry.set_addr(frame.start_address(), flags);
+        pd_table[addr.p2_index()] = entry;
+    }
+
+    /// Direct maps internally used page tables to their respective virtual addresses
+    /// This is used for the creation of the Direct Mapped Kernel Page Table
+    pub fn direct_map(&mut self, frame_allocator: &mut BootstrapFrameAllocator) {
+        use crate::mm::page_table::KernelPageTable;
+
+        let flags = PageTableFlags::PRESENT | PageTableFlags::WRITABLE | PageTableFlags::NO_EXECUTE;
+        for idx in 0..self.pts.len() {
+            let page = &self.pts[idx];
+            let addr = KernelPageTable::DIRECT_MAP_START + page.frame.start_address().as_usize();
+            self.map(addr, page.frame, flags, frame_allocator);
+        }
+
+        for idx in 0..self.pds.len() {
+            let page = &self.pds[idx];
+            let addr = KernelPageTable::DIRECT_MAP_START + page.frame.start_address().as_usize();
+            self.map(addr, page.frame, flags, frame_allocator);
+        }
+
+        for idx in 0..self.pdpts.len() {
+            let page = &self.pdpts[idx];
+            let addr = KernelPageTable::DIRECT_MAP_START + page.frame.start_address().as_usize();
+            self.map(addr, page.frame, flags, frame_allocator);
+        }
+
+        let addr = KernelPageTable::DIRECT_MAP_START + self.pml4_phys.start_address().as_usize();
+        self.map(addr, self.pml4_phys, flags, frame_allocator);
     }
 }

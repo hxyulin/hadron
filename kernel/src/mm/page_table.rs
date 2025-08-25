@@ -1,15 +1,19 @@
-use core::ops::{Index, IndexMut};
+use core::{
+    fmt,
+    ops::{Index, IndexMut},
+};
 
 use crate::{
-    arch::{PhysAddr, VirtAddr},
+    arch::{PhysAddr, VirtAddr, instructions::invlpg},
+    kprintln,
     mm::{
         mappings,
-        paging::{FrameAllocator, PageSize, PhysFrame, Size4KiB},
+        paging::{FrameAllocator, Page, PageSize, PhysFrame, Size4KiB},
     },
 };
 
-#[repr(C, align(4096))]
 #[derive(Debug)]
+#[repr(C, align(4096))]
 pub struct PageTable {
     pub entries: [PageTableEntry; 512],
 }
@@ -37,18 +41,15 @@ impl IndexMut<usize> for PageTable {
 }
 
 #[repr(transparent)]
-#[derive(Debug)]
 pub struct PageTableEntry {
-    entry: u64
+    entry: u64,
 }
 
 impl PageTableEntry {
     const PHYS_ADDR_MASK: u64 = 0x000f_ffff_ffff_f000u64;
 
     pub const fn new() -> Self {
-        Self {
-            entry: 0,
-        }
+        Self { entry: 0 }
     }
 
     pub fn addr(&self) -> PhysAddr {
@@ -57,7 +58,7 @@ impl PageTableEntry {
 
     pub fn set_addr(&mut self, addr: PhysAddr, flags: PageTableFlags) {
         assert!(addr.is_aligned(Size4KiB::SIZE), "page address is not page aligned");
-        self.entry |= addr.as_u64() | flags.bits();
+        self.entry = addr.as_u64() | flags.bits();
     }
 
     pub fn flags(&self) -> PageTableFlags {
@@ -71,6 +72,19 @@ impl PageTableEntry {
     pub fn set_frame(&mut self, frame: PhysFrame, flags: PageTableFlags) {
         self.entry = frame.start_address().as_u64() | flags.bits()
     }
+
+    pub fn is_present(&self) -> bool {
+        self.flags().contains(PageTableFlags::PRESENT)
+    }
+}
+
+impl fmt::Debug for PageTableEntry {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("PageTableEntry")
+            .field("addr", &self.addr())
+            .field("flags", &self.flags())
+            .finish()
+    }
 }
 
 /// THe Page Table for the Kernel
@@ -81,14 +95,171 @@ pub struct KernelPageTable {
 }
 
 impl KernelPageTable {
-    pub const DIRECT_MAP_OFFSET: usize = mappings::PAGE_TABLE_START.as_usize();
+    pub const DIRECT_MAP_START: VirtAddr = mappings::PAGE_TABLE_START;
+    pub const DIRECT_MAP_OFFSET: usize = Self::DIRECT_MAP_START.as_usize();
+    const PAGE_TABLE_FLAGS: PageTableFlags = PageTableFlags::from_bits_truncate(
+        PageTableFlags::PRESENT.bits() | PageTableFlags::WRITABLE.bits() | PageTableFlags::NO_EXECUTE.bits(),
+    );
 
-    pub fn new(pml4: VirtAddr) -> Self {
-        Self { pml4 }
+    pub fn new(pml4: PhysAddr) -> Self {
+        Self {
+            pml4: Self::DIRECT_MAP_START + pml4.as_usize(),
+        }
+    }
+
+    fn to_pt<'a>(addr: VirtAddr) -> &'a PageTable {
+        unsafe { addr.as_ptr::<PageTable>().as_ref().expect("pml4 is null!") }
+    }
+
+    fn to_pt_mut<'a>(addr: VirtAddr) -> &'a mut PageTable {
+        unsafe { addr.as_mut_ptr::<PageTable>().as_mut().expect("pml4 is null!") }
+    }
+
+    fn pml4(&self) -> &PageTable {
+        Self::to_pt(self.pml4)
+    }
+
+    fn pml4_mut(&mut self) -> &mut PageTable {
+        Self::to_pt_mut(self.pml4)
+    }
+
+    fn get_or_create_pdpt(&mut self, index: usize, alloc: &mut impl FrameAllocator<Size4KiB>) -> &mut PageTable {
+        let entry = &mut self.pml4_mut()[index];
+        if entry.is_present() {
+            return Self::to_pt_mut(Self::DIRECT_MAP_START + entry.addr().as_usize());
+        }
+        let frame = alloc.allocate_frame().expect("no frames to allocate");
+        let virt = Self::DIRECT_MAP_START + frame.start_address().as_usize();
+        entry.set_frame(frame, Self::PAGE_TABLE_FLAGS);
+        unsafe { self.map_with_allocator(Page::<Size4KiB>::from_start_address(virt), frame, Self::PAGE_TABLE_FLAGS, alloc) };
+        unsafe {
+            invlpg(virt);
+        }
+        let new_pt = Self::to_pt_mut(virt);
+        *new_pt = PageTable::new();
+        new_pt
+    }
+
+    fn get_or_create_pd(
+        &mut self,
+        pdpt_index: usize,
+        index: usize,
+        alloc: &mut impl FrameAllocator<Size4KiB>,
+    ) -> &mut PageTable {
+        let entry = &mut self.get_or_create_pdpt(pdpt_index, alloc)[index];
+        if entry.is_present() {
+            return Self::to_pt_mut(Self::DIRECT_MAP_START + entry.addr().as_usize());
+        }
+        let frame = alloc.allocate_frame().expect("no frames to allocate");
+        let virt = Self::DIRECT_MAP_START + frame.start_address().as_usize();
+        entry.set_frame(frame, Self::PAGE_TABLE_FLAGS);
+        unsafe {
+            invlpg(virt);
+        }
+        let new_pt = Self::to_pt_mut(virt);
+        *new_pt = PageTable::new();
+        new_pt
+    }
+
+    fn get_or_create_pt(
+        &mut self,
+        pdpt_index: usize,
+        pd_index: usize,
+        index: usize,
+        alloc: &mut impl FrameAllocator<Size4KiB>,
+    ) -> &mut PageTable {
+        let entry = &mut self.get_or_create_pd(pdpt_index, pd_index, alloc)[index];
+        if entry.is_present() {
+            return Self::to_pt_mut(Self::DIRECT_MAP_START + entry.addr().as_usize());
+        }
+        let frame = alloc.allocate_frame().expect("no frames to allocate");
+        let virt = Self::DIRECT_MAP_START + frame.start_address().as_usize();
+        entry.set_frame(frame, Self::PAGE_TABLE_FLAGS);
+        unsafe {
+            invlpg(virt);
+        }
+        let new_pt = Self::to_pt_mut(virt);
+        *new_pt = PageTable::new();
+        new_pt
+    }
+
+    pub fn dump(&self) {
+        for (pml4_idx, pml4_entry) in self.pml4().entries.iter().enumerate() {
+            if !pml4_entry.is_present() {
+                continue;
+            }
+
+            kprintln!(Debug, "PML4[{}]: {:?}", pml4_idx, pml4_entry);
+
+            let pdpt_virt = Self::DIRECT_MAP_START + pml4_entry.addr().as_usize();
+            let pdpt = Self::to_pt(pdpt_virt);
+
+            for (pdpt_idx, pdpt_entry) in pdpt.entries.iter().enumerate() {
+                if !pdpt_entry.is_present() {
+                    continue;
+                }
+
+                kprintln!(Debug, "\tPDPT[{}]: {:?}", pdpt_idx, pdpt_entry);
+
+                // Check if this is a 1GB page
+                if pdpt_entry.flags().contains(PageTableFlags::HUGE_PAGE) {
+                    kprintln!(Debug, "\t\t1GB PAGE - Skipping further traversal");
+                    continue;
+                }
+
+                let pd_virt = Self::DIRECT_MAP_START + pdpt_entry.addr().as_usize();
+                let pd = Self::to_pt(pd_virt);
+
+                for (pd_idx, pd_entry) in pd.entries.iter().enumerate() {
+                    if !pd_entry.is_present() {
+                        continue;
+                    }
+
+                    kprintln!(Debug, "\t\tPD[{}]: {:?}", pd_idx, pd_entry);
+
+                    // Check if this is a 2MB page
+                    if pd_entry.flags().contains(PageTableFlags::HUGE_PAGE) {
+                        kprintln!(Debug, "\t\t\t2MB PAGE - Skipping further traversal");
+                        continue;
+                    }
+
+                    let pt_virt = Self::DIRECT_MAP_START + pd_entry.addr().as_usize();
+                    let pt = Self::to_pt(pt_virt);
+
+                    for (pt_idx, pt_entry) in pt.entries.iter().enumerate() {
+                        if !pt_entry.is_present() {
+                            continue;
+                        }
+
+                        kprintln!(Debug, "\t\t\tPT[{}]: {:?}", pt_idx, pt_entry);
+
+                        // Calculate the virtual address this entry maps to
+                        let virt_addr = VirtAddr::new_truncate(
+                            (pml4_idx << 39) | (pdpt_idx << 30) | (pd_idx << 21) | (pt_idx << 12),
+                        );
+
+                        kprintln!(
+                            Debug,
+                            "\t\t\t\tMaps virtual address: {:?} to physical: {:?}",
+                            virt_addr,
+                            pt_entry.addr()
+                        );
+                    }
+                }
+            }
+        }
+    }
+}
+
+impl fmt::Debug for KernelPageTable {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("KernelPageTable").field("pml4", self.pml4());
+        Ok(())
     }
 }
 
 bitflags::bitflags! {
+    #[derive(Debug, Clone, Copy)]
     pub struct PageTableFlags: u64 {
         const PRESENT = 1 << 0;
         const WRITABLE = 1 << 1;
@@ -117,8 +288,43 @@ bitflags::bitflags! {
     }
 }
 
-pub trait Mapper<S: PageSize> {
-    fn map_page(frame: PhysFrame, allocator: impl FrameAllocator<S>, options: PageTableFlags) -> Result<Flush, ()>;
+pub trait Mapper<S: PageSize = Size4KiB> {
+    /// Maps a page to a frame.
+    ///
+    /// # Safety
+    /// This function is unsafe because mapping the same physical frame to multiple virtual addresses
+    /// can cause UB.
+    unsafe fn map(&mut self, page: Page<S>, frame: PhysFrame<S>, flags: PageTableFlags);
+    unsafe fn map_with_allocator(
+        &mut self,
+        page: Page<S>,
+        frame: PhysFrame<S>,
+        flags: PageTableFlags,
+        frame_alloc: &mut impl FrameAllocator<Size4KiB>,
+    );
+    unsafe fn unmap(&mut self, page: Page<S>);
+}
+
+impl Mapper<Size4KiB> for KernelPageTable {
+    unsafe fn map(&mut self, page: Page<Size4KiB>, frame: PhysFrame<Size4KiB>, flags: PageTableFlags) {
+        todo!()
+    }
+
+    unsafe fn map_with_allocator(
+        &mut self,
+        page: Page<Size4KiB>,
+        frame: PhysFrame<Size4KiB>,
+        flags: PageTableFlags,
+        frame_alloc: &mut impl FrameAllocator<Size4KiB>,
+    ) {
+        let addr = page.start_address();
+        let pt = self.get_or_create_pt(addr.p4_index(), addr.p3_index(), addr.p2_index(), frame_alloc);
+        pt[addr.p1_index()].set_frame(frame, flags);
+    }
+
+    unsafe fn unmap(&mut self, page: Page<Size4KiB>) {
+        todo!()
+    }
 }
 
 pub struct Flush {

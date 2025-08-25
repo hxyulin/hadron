@@ -1,4 +1,4 @@
-use crate::util::machine_state::MachineState;
+use crate::{arch::registers::control::Cr2, util::machine_state::MachineState};
 
 use super::InterruptStackFrame;
 
@@ -20,5 +20,5 @@ pub(super) extern "x86-interrupt" fn double_fault(stack_frame: InterruptStackFra
 }
 
 pub(super) extern "x86-interrupt" fn page_fault(stack_frame: InterruptStackFrame, err_code: u64) {
-    panic!("TRAP: PAGE_FAULT\nstack frame: {:#?}\nerr_code = {}", stack_frame, err_code);
+    panic!("TRAP: PAGE_FAULT\nstack frame: {:#?}\nerr_code = {}\nat: {:#x}", stack_frame, err_code, Cr2::read());
 }

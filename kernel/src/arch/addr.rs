@@ -181,6 +181,18 @@ impl fmt::LowerHex for VirtAddr {
     }
 }
 
+impl PartialOrd for VirtAddr {
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
+        PartialOrd::partial_cmp(&self.0, &other.0)
+    }
+}
+
+impl Ord for VirtAddr {
+    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
+        Ord::cmp(&self.0, &other.0)
+    }
+}
+
 #[repr(transparent)]
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct PhysAddr(usize);
@@ -195,6 +207,15 @@ impl PhysAddr {
 
     pub const fn as_u64(self) -> u64 {
         self.0 as u64
+    }
+
+    pub fn align_up(self, alignment: usize) -> Self {
+        let temp = alignment - 1;
+        Self((self.0 + temp) & !temp)
+    }
+
+    pub fn align_down(self, alignment: usize) -> Self {
+        Self(self.0 & !(alignment - 1))
     }
 }
 
@@ -211,6 +232,14 @@ impl PhysAddr {
 impl fmt::Debug for PhysAddr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_fmt(format_args!("PhysAddr({:#x})", self.0))
+    }
+}
+
+impl core::ops::Sub<PhysAddr> for PhysAddr {
+    type Output = usize;
+
+    fn sub(self, rhs: PhysAddr) -> Self::Output {
+        self.0 - rhs.0
     }
 }
 
@@ -240,5 +269,17 @@ impl core::ops::Add<u64> for PhysAddr {
 impl fmt::LowerHex for PhysAddr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::LowerHex::fmt(&self.0, f)
+    }
+}
+
+impl PartialOrd for PhysAddr {
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
+        PartialOrd::partial_cmp(&self.0, &other.0)
+    }
+}
+
+impl Ord for PhysAddr {
+    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
+        Ord::cmp(&self.0, &other.0)
     }
 }
