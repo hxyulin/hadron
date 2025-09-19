@@ -1,4 +1,4 @@
-# no-alloc
+# noalloc
 
 A no-std, no-alloc collections library.
 

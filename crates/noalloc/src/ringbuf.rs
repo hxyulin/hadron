@@ -21,7 +21,7 @@ where
     ///
     /// # Example
     /// ```
-    /// use no_alloc::ringbuf::RingBuf;
+    /// use noalloc::ringbuf::RingBuf;
     ///
     /// // Create an empty ringbuf
     /// let ringbuf = RingBuf::<u8, 8>::new();
@@ -39,7 +39,7 @@ where
     ///
     /// # Example
     /// ```
-    /// use no_alloc::ringbuf::RingBuf;
+    /// use noalloc::ringbuf::RingBuf;
     ///
     /// // Create an empty ringbuf
     /// let mut ringbuf = RingBuf::<u8, 8>::new();
@@ -57,7 +57,7 @@ where
     ///
     /// # Example
     /// ```
-    /// use no_alloc::ringbuf::RingBuf;
+    /// use noalloc::ringbuf::RingBuf;
     ///
     /// // Create an empty ringbuf
     /// let mut ringbuf = RingBuf::<u8, 8>::new();
@@ -79,7 +79,7 @@ where
     ///
     /// # Example
     /// ```
-    /// use no_alloc::ringbuf::RingBuf;
+    /// use noalloc::ringbuf::RingBuf;
     ///
     /// // Create an empty ringbuf
     /// let mut ringbuf = RingBuf::<u8, 8>::new();

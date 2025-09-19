@@ -22,7 +22,7 @@ test = []
 lazy_static.workspace = true
 limine.workspace = true
 spin.workspace = true
-no-alloc.workspace = true
+noalloc.workspace = true
 volatile.workspace = true
 
 # Only Utility External Dependencies

@@ -10,6 +10,8 @@ default-members = ["crates/buildscript"]
 version = "0.0.1"
 edition = "2024"
 rust-version = "1.90.0"
+authors = ["hxyulin <hxyulin@proton.me>"]
+license = "GPL-3.0"
 
 # We have a generic image runner that we use for all the packages
 [workspace.metadata.image-runner]
@@ -17,7 +19,7 @@ limine-branch = "v8.x-binary"
 config-file = "limine.conf"
 extra-files = []
 # We can configure this to use UEFI or BIOS
-boot-type = "bios"
+boot-type = "uefi"
 test-success-exit-code = 33
 test-args = [
     "-device",
@@ -43,7 +45,7 @@ menuconfig = { path = "crates/menuconfig", default-features = false }
 limine = { path = "crates/limine", default-features = false }
 volatile = { path = "crates/volatile", default-features = false }
 hadron-test = { path = "crates/hadron-test", default-features = false }
-no-alloc = { path = "crates/no-alloc", default-features = false }
+noalloc = { path = "crates/noalloc", default-features = false }
 
 tracing = { version = "0.1.41", default-features = false }
 x86_64 = "0.15.2"

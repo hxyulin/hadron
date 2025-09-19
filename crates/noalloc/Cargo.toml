@@ -1,0 +1,16 @@
+[package]
+name = "noalloc"
+version = "0.0.1"
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "A crate providing stack allocated counterparts for types in alloc"
+readme = "README.md"
+publish = true
+
+[features]
+default = ["std"]
+std = []
+
+[dependencies]
+

@@ -1,7 +1,7 @@
 use core::fmt;
 
 use alloc::{boxed::Box, sync::Arc, vec::Vec};
-use no_alloc::ringbuf::RingBuf;
+use noalloc::ringbuf::RingBuf;
 use spin::Mutex;
 
 use crate::dev::Device;
