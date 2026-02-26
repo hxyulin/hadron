@@ -1,7 +1,7 @@
 # Hadron
 
 Hadron is a POSIX compliant, from-scratch, and open-source operating system written in Rust.
-> Note: Development has moved to [asterism-labs/hadron](https://github.com/asterism-labs/hadron]
+Development has moved to [asterism-labs/hadron](https://github.com/asterism-labs/hadron]
 
 ## Building
 
